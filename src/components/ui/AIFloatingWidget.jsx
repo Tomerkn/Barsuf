@@ -5,9 +5,10 @@ import { ProjectChat } from './ProjectChat';
 
 export function AIFloatingWidget({ projectId }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   const nodeRef = React.useRef(null);
 
-  if (!projectId) return null;
+  if (!projectId || !isVisible) return null;
 
   return (
     <Draggable nodeRef={nodeRef} handle=".drag-handle" bounds="parent">
@@ -36,7 +37,7 @@ export function AIFloatingWidget({ projectId }) {
 
         {/* Floating Button */}
         {!isOpen && (
-          <div className="drag-handle cursor-move relative group">
+          <div className="drag-handle cursor-move relative group flex items-start gap-1">
             <button 
               onClick={() => setIsOpen(true)}
               className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center transition-transform hover:scale-105 relative z-10"
@@ -46,6 +47,18 @@ export function AIFloatingWidget({ projectId }) {
               <div className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 rounded-full p-1 animate-pulse">
                 <Sparkles className="w-3 h-3" />
               </div>
+            </button>
+
+            {/* Dismiss completely button */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsVisible(false);
+              }}
+              className="bg-surface border border-border text-text-secondary hover:text-red-500 hover:bg-red-50 p-1.5 rounded-full shadow-sm transition-colors opacity-0 group-hover:opacity-100 absolute -top-2 -left-2 z-20"
+              title="סגור חלונית AI"
+            >
+              <X className="w-3 h-3" />
             </button>
             
             {/* Tooltip */}
