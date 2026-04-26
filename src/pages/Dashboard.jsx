@@ -20,15 +20,37 @@ const formatCurrency = (value) => {
 
 export function Dashboard() {
   const [data, setData] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // Hardcoded to project 1 for demo purposes
-  const projectId = 1;
 
+  // Fetch all projects on mount
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchProjects = async () => {
       try {
-        const analytics = await api.getProjectAnalytics(projectId);
+        const pList = await api.getProjects();
+        setProjects(pList);
+        if (pList.length > 0) {
+          setSelectedProjectId(pList[0].id);
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        setLoading(false);
+      }
+    };
+    fetchProjects();
+  }, []);
+
+  // Fetch analytics when selectedProjectId changes
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    
+    const fetchAnalytics = async () => {
+      setLoading(true);
+      try {
+        const analytics = await api.getProjectAnalytics(selectedProjectId);
         setData(analytics);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -36,13 +58,22 @@ export function Dashboard() {
         setLoading(false);
       }
     };
-    fetchData();
-  }, [projectId]);
+    fetchAnalytics();
+  }, [selectedProjectId]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand)]" />
+      </div>
+    );
+  }
+
+  if (!projects || projects.length === 0) {
+    return (
+      <div className="p-8 text-center flex flex-col items-center justify-center h-full text-text-muted">
+        <h2 className="text-xl font-bold mb-2 text-text-primary">אין פרויקטים להצגה</h2>
+        <p>נא להוסיף פרויקט חדש דרך תפריט הפרויקטים כדי לראות נתונים בדאשבורד.</p>
       </div>
     );
   }
@@ -64,14 +95,25 @@ export function Dashboard() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8 flex justify-between items-end">
+      <div className="mb-8 flex justify-between items-end bg-surface p-4 rounded-xl border border-border shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary mb-1">פרויקט: {project.name}</h1>
+          <h1 className="text-2xl font-bold text-text-primary mb-2 flex items-center gap-3">
+            דאשבורד פרויקט:
+            <select 
+              value={selectedProjectId || ''}
+              onChange={(e) => setSelectedProjectId(Number(e.target.value))}
+              className="bg-transparent border-b-2 border-[var(--color-brand)] focus:outline-none text-text-primary pb-1"
+            >
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </h1>
           <p className="text-text-secondary text-sm">{project.location} • צפי סיום: {new Date(project.end_date).toLocaleDateString('he-IL')}</p>
         </div>
-        <div className="bg-surface border border-border px-4 py-2 rounded-lg text-sm font-medium text-text-primary flex items-center gap-2 shadow-sm">
+        <div className="bg-surface-hover border border-border px-4 py-2 rounded-lg text-sm font-medium text-text-primary flex items-center gap-2">
           <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`}></div>
-          סטטוס: {statusText}
+          סטטוס נוכחי: {statusText}
         </div>
       </div>
 
