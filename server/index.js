@@ -21,6 +21,13 @@ app.get('/api/projects/:id', (req, res) => {
   res.json(project);
 });
 
+app.post('/api/projects', (req, res) => {
+  const { name, location, end_date, status } = req.body;
+  const insert = db.prepare('INSERT INTO projects (name, location, end_date, status) VALUES (?, ?, ?, ?)');
+  const result = insert.run(name, location, end_date, status);
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
 // Budgets API
 app.get('/api/budgets', (req, res) => {
   const { projectId } = req.query;
@@ -32,6 +39,13 @@ app.get('/api/budgets', (req, res) => {
   }
   const budgets = db.prepare(query).all(params);
   res.json(budgets);
+});
+
+app.post('/api/budgets', (req, res) => {
+  const { project_id, category, total_amount, approved_date } = req.body;
+  const insert = db.prepare('INSERT INTO budgets (project_id, category, total_amount, approved_date) VALUES (?, ?, ?, ?)');
+  const result = insert.run(project_id, category, total_amount, approved_date);
+  res.status(201).json({ id: result.lastInsertRowid });
 });
 
 // Expenses API
@@ -61,10 +75,24 @@ app.get('/api/contractors', (req, res) => {
   res.json(contractors);
 });
 
+app.post('/api/contractors', (req, res) => {
+  const { name, specialization, phone, email } = req.body;
+  const insert = db.prepare('INSERT INTO contractors (name, specialization, phone, email) VALUES (?, ?, ?, ?)');
+  const result = insert.run(name, specialization, phone, email);
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
 // Orders API
 app.get('/api/orders', (req, res) => {
   const orders = db.prepare('SELECT orders.*, projects.name as project_name FROM orders LEFT JOIN projects ON orders.project_id = projects.id ORDER BY orders.order_date DESC').all();
   res.json(orders);
+});
+
+app.post('/api/orders', (req, res) => {
+  const { project_id, supplier_name, item_description, amount, order_date, status } = req.body;
+  const insert = db.prepare('INSERT INTO orders (project_id, supplier_name, item_description, amount, order_date, status) VALUES (?, ?, ?, ?, ?, ?)');
+  const result = insert.run(project_id, supplier_name, item_description, amount, order_date, status);
+  res.status(201).json({ id: result.lastInsertRowid });
 });
 
 // Dashboard Analytics API

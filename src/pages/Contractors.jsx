@@ -1,24 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { Loader2, Plus, HardHat, Phone, Mail } from 'lucide-react';
+import { Modal } from '../components/ui/Modal';
 
 export function Contractors() {
   const [contractors, setContractors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({ name: '', specialization: '', phone: '', email: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchContractors = async () => {
+    try {
+      const data = await api.getContractors();
+      setContractors(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchContractors = async () => {
-      try {
-        const data = await api.getContractors();
-        setContractors(data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchContractors();
   }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await api.createContractor(formData);
+      setIsModalOpen(false);
+      setFormData({ name: '', specialization: '', phone: '', email: '' });
+      await fetchContractors();
+    } catch (error) {
+      console.error('Failed to create contractor:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>;
 
@@ -29,7 +49,10 @@ export function Contractors() {
           <h1 className="text-2xl font-bold text-text-primary">קבלנים</h1>
           <p className="text-text-secondary text-sm">מאגר קבלני ביצוע ויעוץ</p>
         </div>
-        <button className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+        >
           <Plus className="w-4 h-4" />
           הוסף קבלן
         </button>
@@ -67,6 +90,52 @@ export function Contractors() {
           </tbody>
         </table>
       </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="הוספת קבלן חדש">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">שם הקבלן / חברה</label>
+            <input 
+              type="text" required
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
+              value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">התמחות</label>
+            <input 
+              type="text" required
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
+              value={formData.specialization} onChange={e => setFormData({...formData, specialization: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">טלפון</label>
+            <input 
+              type="tel" required dir="ltr"
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)] text-left"
+              value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">דוא"ל</label>
+            <input 
+              type="email" required dir="ltr"
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)] text-left"
+              value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
+            />
+          </div>
+          
+          <div className="pt-4 flex justify-end gap-3 border-t border-border mt-2">
+            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover rounded-lg transition-colors">
+              ביטול
+            </button>
+            <button type="submit" disabled={submitting} className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+              {submitting ? 'שומר...' : 'שמור קבלן'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

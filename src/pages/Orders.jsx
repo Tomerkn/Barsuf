@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { Loader2, Plus, ClipboardList } from 'lucide-react';
+import { Modal } from '../components/ui/Modal';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(value);
@@ -8,24 +9,49 @@ const formatCurrency = (value) => {
 
 export function Orders() {
   const [orders, setOrders] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({ project_id: '', supplier_name: '', item_description: '', amount: '', order_date: new Date().toISOString().split('T')[0], status: 'פתוח' });
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      const [ordersData, projectsData] = await Promise.all([
+        api.getOrders(),
+        api.getProjects()
+      ]);
+      setOrders(ordersData);
+      setProjects(projectsData);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Assuming api.getOrders exists. We will add it to api.js.
-    const fetchOrders = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/orders');
-        if (!response.ok) throw new Error('Failed to fetch orders');
-        const data = await response.json();
-        setOrders(data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchOrders();
+    fetchData();
   }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await api.createOrder({
+        ...formData,
+        amount: Number(formData.amount)
+      });
+      setIsModalOpen(false);
+      setFormData({ project_id: '', supplier_name: '', item_description: '', amount: '', order_date: new Date().toISOString().split('T')[0], status: 'פתוח' });
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to create order:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>;
 
@@ -36,7 +62,10 @@ export function Orders() {
           <h1 className="text-2xl font-bold text-text-primary">הזמנות רכש (POs)</h1>
           <p className="text-text-secondary text-sm">מעקב ובקרת הזמנות רכש מול ספקים וקבלנים</p>
         </div>
-        <button className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+        >
           <Plus className="w-4 h-4" />
           הזמנה חדשה
         </button>
@@ -78,6 +107,65 @@ export function Orders() {
           </tbody>
         </table>
       </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="הוספת הזמנת רכש (PO) חדשה">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">פרויקט משויך</label>
+            <select 
+              required
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
+              value={formData.project_id} onChange={e => setFormData({...formData, project_id: e.target.value})}
+            >
+              <option value="" disabled>בחר פרויקט</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">שם הספק / קבלן</label>
+            <input 
+              type="text" required
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
+              value={formData.supplier_name} onChange={e => setFormData({...formData, supplier_name: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">תיאור העבודה או הפריט</label>
+            <input 
+              type="text" required
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
+              value={formData.item_description} onChange={e => setFormData({...formData, item_description: e.target.value})}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">סכום (₪)</label>
+              <input 
+                type="number" required min="0" step="0.01"
+                className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
+                value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">תאריך הוצאת הזמנה</label>
+              <input 
+                type="date" required
+                className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
+                value={formData.order_date} onChange={e => setFormData({...formData, order_date: e.target.value})}
+              />
+            </div>
+          </div>
+          
+          <div className="pt-4 flex justify-end gap-3 border-t border-border mt-2">
+            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover rounded-lg transition-colors">
+              ביטול
+            </button>
+            <button type="submit" disabled={submitting} className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+              {submitting ? 'שומר...' : 'צור הזמנה'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
