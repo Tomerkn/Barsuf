@@ -43,6 +43,11 @@ export const ingestDocument = async (projectId, filePath) => {
     });
     const docs = await textSplitter.splitDocuments(rawDocs);
 
+    // בדיקה אם המסמך ריק או שאין בו טקסט קריא
+    if (!docs || docs.length === 0) {
+      throw new Error("לא נמצא טקסט קריא במסמך. ייתכן שזהו מסמך סרוק (תמונה) או קובץ ריק.");
+    }
+
     // 3. Create or load vector store
     const storePath = path.join(VECTOR_STORE_DIR, `project_${projectId}`);
     let vectorStore;
