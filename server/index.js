@@ -1,10 +1,31 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import db from './db.js';
 import './seed.js'; // Ensure database is seeded
+import { ingestDocument, askQuestion } from './ai.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Setup uploads directory
+const UPLOADS_DIR = path.join(process.cwd(), 'server', 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Configure multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
+const upload = multer({ storage });
 
 app.use(cors());
 app.use(express.json());
@@ -128,6 +149,48 @@ app.get('/api/projects/:id/analytics', (req, res) => {
     utilization,
     breakdown
   });
+});
+
+// Files & AI API
+app.get('/api/projects/:id/files', (req, res) => {
+  const files = db.prepare('SELECT * FROM files WHERE project_id = ? ORDER BY upload_date DESC').all(req.params.id);
+  res.json(files);
+});
+
+app.post('/api/projects/:id/files', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const projectId = req.params.id;
+  const filename = req.file.filename;
+  const originalName = req.file.originalname;
+  const filePath = req.file.path;
+  
+  try {
+    // 1. Save to DB
+    const insert = db.prepare('INSERT INTO files (project_id, filename, original_name, upload_date) VALUES (?, ?, ?, ?)');
+    insert.run(projectId, filename, originalName, new Date().toISOString());
+    
+    // 2. Ingest into AI Vector Store (Background process)
+    // We await it here so the user gets confirmation it's ready
+    await ingestDocument(projectId, filePath);
+    
+    res.status(201).json({ success: true, message: 'File uploaded and processed' });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to process file' });
+  }
+});
+
+app.post('/api/projects/:id/chat', async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ error: 'Question required' });
+  
+  try {
+    const answer = await askQuestion(req.params.id, question);
+    res.json({ answer });
+  } catch (error) {
+    console.error('Chat error:', error);
+    res.status(500).json({ error: 'Failed to get answer' });
+  }
 });
 
 app.listen(PORT, () => {

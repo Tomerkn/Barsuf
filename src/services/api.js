@@ -1,6 +1,7 @@
 const API_BASE_URL = 'http://localhost:3001/api';
 
 export const api = {
+  baseUrl: API_BASE_URL,
   getProjects: async () => {
     const response = await fetch(`${API_BASE_URL}/projects`);
     if (!response.ok) throw new Error('Failed to fetch projects');

@@ -2,17 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { KpiCard } from '../components/ui/KpiCard';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { Wallet, TrendingUp, AlertTriangle, Percent, Loader2 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { api } from '../services/api';
+import { ProjectChat } from '../components/ui/ProjectChat';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(value);
@@ -177,6 +169,11 @@ export function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* AI Chat section */}
+        <div className="lg:col-span-1">
+          <ProjectChat projectId={selectedProjectId} />
         </div>
       </div>
     </div>
