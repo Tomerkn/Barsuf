@@ -1,7 +1,20 @@
-import React from 'react';
-import { Bell, Search, User } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Bell, Search, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
 
 export function Header() {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <header className="h-16 bg-background border-b border-border flex items-center justify-between px-6 sticky top-0 z-10">
       <div className="flex-1 max-w-xl">
@@ -20,11 +33,34 @@ export function Header() {
           <Bell className="w-5 h-5" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
         </button>
-        <div className="flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-surface-hover pr-3">
-          <div className="w-8 h-8 rounded-full bg-[var(--color-brand)]/10 flex items-center justify-center text-[var(--color-brand)] font-bold">
-            ת
+        <div className="relative" ref={profileRef}>
+          <div 
+            className="flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-surface-hover pr-3"
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+          >
+            <div className="w-8 h-8 rounded-full bg-[var(--color-brand)]/10 flex items-center justify-center text-[var(--color-brand)] font-bold">
+              ת
+            </div>
+            <span className="text-sm font-medium hidden sm:block mr-2 text-text-primary">תומר קנובלר</span>
           </div>
-          <span className="text-sm font-medium hidden sm:block mr-2 text-text-primary">תומר ק.</span>
+
+          {isProfileOpen && (
+            <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-surface border border-border py-1 z-50">
+              <button className="w-full text-right px-4 py-2 text-sm text-text-primary hover:bg-surface-hover flex items-center gap-2">
+                <User className="w-4 h-4" />
+                הפרופיל שלי
+              </button>
+              <button className="w-full text-right px-4 py-2 text-sm text-text-primary hover:bg-surface-hover flex items-center gap-2">
+                <SettingsIcon className="w-4 h-4" />
+                הגדרות
+              </button>
+              <div className="border-t border-border my-1"></div>
+              <button className="w-full text-right px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors">
+                <LogOut className="w-4 h-4" />
+                התנתק
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

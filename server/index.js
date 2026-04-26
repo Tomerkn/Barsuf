@@ -192,9 +192,18 @@ app.post('/api/projects/:id/chat', async (req, res) => {
     res.json({ answer });
   } catch (error) {
     console.error('Chat error:', error);
-    res.status(500).json({ error: 'Failed to get answer' });
+    res.status(500).json({ error: 'Failed to get answer. Make sure Ollama is running.' });
   }
 });
+
+// Serve frontend static files in production
+const DIST_DIR = path.join(process.cwd(), 'dist');
+if (fs.existsSync(DIST_DIR)) {
+  app.use(express.static(DIST_DIR));
+  app.use((req, res) => {
+    res.sendFile(path.join(DIST_DIR, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

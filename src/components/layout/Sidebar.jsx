@@ -11,6 +11,7 @@ import {
   Settings
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { X } from 'lucide-react';
 
 const navItems = [
   { name: 'דאשבורד פרויקט', path: '/', icon: LayoutDashboard },
@@ -23,8 +24,11 @@ const navItems = [
 ];
 
 export function Sidebar() {
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+
   return (
-    <aside className="w-64 bg-surface border-l border-border flex flex-col h-screen fixed right-0 top-0 text-text-primary">
+    <>
+    <aside className="w-64 bg-surface border-l border-border flex flex-col h-screen fixed right-0 top-0 text-text-primary z-20">
       <div className="p-6 flex items-center justify-center border-b border-border">
         <img src="https://barsuf.co.il/wp-content/uploads/2019/07/logo-barsuf.png" alt="Barsuf Logo" className="h-10 object-contain" />
       </div>
@@ -51,11 +55,75 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors text-sm font-medium">
+        <button 
+          onClick={() => setIsSettingsOpen(true)}
+          className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors text-sm font-medium"
+        >
           <Settings className="w-5 h-5" />
           הגדרות
         </button>
       </div>
     </aside>
+
+    {isSettingsOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-border bg-surface-hover">
+              <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                <Settings className="w-5 h-5 text-[var(--color-brand)]" />
+                הגדרות מערכת
+              </h2>
+              <button 
+                onClick={() => setIsSettingsOpen(false)}
+                className="text-text-secondary hover:text-text-primary transition-colors p-1 rounded-full hover:bg-background"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold text-text-secondary mb-3 uppercase tracking-wider">כללי</h3>
+                <div className="space-y-3">
+                  <label className="flex items-center justify-between cursor-pointer group">
+                    <span className="text-text-primary font-medium group-hover:text-[var(--color-brand)] transition-colors">מצב כהה (Dark Mode)</span>
+                    <input type="checkbox" className="w-4 h-4 text-[var(--color-brand)] rounded border-border focus:ring-[var(--color-brand)] bg-background" />
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer group">
+                    <span className="text-text-primary font-medium group-hover:text-[var(--color-brand)] transition-colors">התראות דפדפן</span>
+                    <input type="checkbox" defaultChecked className="w-4 h-4 text-[var(--color-brand)] rounded border-border focus:ring-[var(--color-brand)] bg-background" />
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border">
+                <h3 className="text-sm font-semibold text-text-secondary mb-3 uppercase tracking-wider">בינה מלאכותית</h3>
+                <div className="space-y-3">
+                  <label className="flex items-center justify-between cursor-pointer group">
+                    <span className="text-text-primary font-medium group-hover:text-[var(--color-brand)] transition-colors">הפעלת מנוע Ollama</span>
+                    <input type="checkbox" defaultChecked className="w-4 h-4 text-[var(--color-brand)] rounded border-border focus:ring-[var(--color-brand)] bg-background" />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-border bg-surface-hover flex justify-end gap-3">
+              <button 
+                onClick={() => setIsSettingsOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                ביטול
+              </button>
+              <button 
+                onClick={() => setIsSettingsOpen(false)}
+                className="px-4 py-2 bg-[var(--color-brand)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity shadow-sm shadow-[var(--color-brand)]/20"
+              >
+                שמור שינויים
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
