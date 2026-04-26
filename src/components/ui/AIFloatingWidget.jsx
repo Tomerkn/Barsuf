@@ -11,13 +11,16 @@ export function AIFloatingWidget({ projectId }) {
   if (!projectId || !isVisible) return null;
 
   return (
-    <Draggable nodeRef={nodeRef} handle=".drag-handle" bounds="parent">
+    <Draggable nodeRef={nodeRef} handle=".drag-handle" bounds="body">
       <div ref={nodeRef} className="fixed bottom-6 left-6 z-50 flex flex-col items-start">
         
         {/* Chat Window */}
         {isOpen && (
-          <div className="bg-surface border border-border rounded-2xl shadow-2xl mb-4 w-[400px] overflow-hidden flex flex-col transition-all duration-300">
-            <div className="drag-handle bg-[var(--color-brand)] p-3 flex justify-between items-center cursor-move text-white rounded-t-2xl">
+          <div 
+            className="bg-surface border border-border rounded-2xl shadow-2xl mb-4 overflow-hidden flex flex-col transition-all duration-300"
+            style={{ width: '400px', maxWidth: '90vw', height: '550px', maxHeight: '85vh' }}
+          >
+            <div className="drag-handle bg-[var(--color-brand)] p-3 flex justify-between items-center cursor-move text-white rounded-t-2xl shrink-0">
               <div className="flex items-center gap-2">
                 <Bot className="w-5 h-5" />
                 <span className="font-bold text-sm">התייעץ עם הבינה</span>
@@ -29,8 +32,10 @@ export function AIFloatingWidget({ projectId }) {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="h-[500px]">
-              <ProjectChat projectId={projectId} />
+            <div className="flex-1 overflow-hidden relative">
+              <div className="absolute inset-0">
+                <ProjectChat projectId={projectId} />
+              </div>
             </div>
           </div>
         )}
