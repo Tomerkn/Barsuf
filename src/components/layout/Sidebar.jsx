@@ -99,21 +99,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
                 <h3 className="text-sm font-semibold text-text-secondary mb-3 uppercase tracking-wider">כללי</h3>
                 <div className="space-y-3">
                   <label className="flex items-center justify-between cursor-pointer group">
-                    <span className="text-text-primary font-medium group-hover:text-[var(--color-brand)] transition-colors">מצב כהה (Dark Mode)</span>
-                    <input type="checkbox" className="w-4 h-4 text-[var(--color-brand)] rounded border-border focus:ring-[var(--color-brand)] bg-background" />
-                  </label>
-                  <label className="flex items-center justify-between cursor-pointer group">
                     <span className="text-text-primary font-medium group-hover:text-[var(--color-brand)] transition-colors">התראות דפדפן</span>
-                    <input type="checkbox" defaultChecked className="w-4 h-4 text-[var(--color-brand)] rounded border-border focus:ring-[var(--color-brand)] bg-background" />
-                  </label>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-border">
-                <h3 className="text-sm font-semibold text-text-secondary mb-3 uppercase tracking-wider">בינה מלאכותית</h3>
-                <div className="space-y-3">
-                  <label className="flex items-center justify-between cursor-pointer group">
-                    <span className="text-text-primary font-medium group-hover:text-[var(--color-brand)] transition-colors">הפעלת מנוע Ollama</span>
                     <input type="checkbox" defaultChecked className="w-4 h-4 text-[var(--color-brand)] rounded border-border focus:ring-[var(--color-brand)] bg-background" />
                   </label>
                 </div>

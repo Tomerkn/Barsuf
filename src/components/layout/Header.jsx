@@ -1,11 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Search, User, LogOut, Settings as SettingsIcon, Menu } from 'lucide-react';
+import { Bell, Search, User, LogOut, Settings as SettingsIcon, Menu, Moon, Sun } from 'lucide-react';
 
 export function Header({ toggleMobileMenu }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   useEffect(() => {
+    // Check initial dark mode state
+    if (document.documentElement.classList.contains('dark')) {
+      setIsDarkMode(true);
+    }
+    
     function handleClickOutside(event) {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setIsProfileOpen(false);
@@ -14,6 +21,15 @@ export function Header({ toggleMobileMenu }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const toggleDarkMode = () => {
+    const isDark = document.documentElement.classList.toggle('dark');
+    setIsDarkMode(isDark);
+  };
+
+  const handleBellClick = () => {
+    alert("אין התראות חדשות נכון לעכשיו");
+  };
 
   return (
     <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 md:px-6 sticky top-0 z-10">
@@ -37,7 +53,18 @@ export function Header({ toggleMobileMenu }) {
       </div>
       
       <div className="flex items-center gap-4">
-        <button className="relative p-2 text-text-secondary hover:text-text-primary transition-colors rounded-full hover:bg-surface-hover">
+        <button 
+          onClick={toggleDarkMode}
+          className="relative p-2 text-text-secondary hover:text-text-primary transition-colors rounded-full hover:bg-surface-hover"
+          title="החלף מצב תצוגה (Dark/Light Mode)"
+        >
+          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </button>
+        <button 
+          onClick={handleBellClick}
+          className="relative p-2 text-text-secondary hover:text-text-primary transition-colors rounded-full hover:bg-surface-hover"
+          title="התראות"
+        >
           <Bell className="w-5 h-5" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
         </button>
