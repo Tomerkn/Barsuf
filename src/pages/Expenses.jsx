@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Loader2, Plus, ReceiptText } from 'lucide-react';
+import { Loader2, Plus, ReceiptText, Pencil, Trash2 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
+import { AIExcelUpload } from '../components/ui/AIExcelUpload';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(value);
@@ -19,6 +20,7 @@ export function Expenses() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ project_id: projectId, budget_id: '', contractor_id: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchExpenses = async () => {
     try {
@@ -56,19 +58,51 @@ export function Expenses() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.createExpense({
-        ...formData,
-        amount: Number(formData.amount),
-        project_id: projectId
-      });
+      if (editingId) {
+        await api.updateResource('expenses', editingId, {
+          ...formData,
+          project_id: projectId,
+          amount: Number(formData.amount)
+        });
+      } else {
+        await api.createExpense({
+          ...formData,
+          project_id: projectId,
+          amount: Number(formData.amount)
+        });
+      }
       setIsModalOpen(false);
+      setEditingId(null);
       setFormData({ project_id: projectId, budget_id: '', contractor_id: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' });
       await fetchExpenses();
     } catch (error) {
-      console.error('Failed to create expense:', error);
+      console.error('Failed to save expense:', error);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק הוצאה זו?')) return;
+    try {
+      await api.deleteResource('expenses', id);
+      await fetchExpenses();
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    }
+  };
+
+  const handleEdit = (expense) => {
+    setEditingId(expense.id);
+    setFormData({
+      project_id: expense.project_id,
+      budget_id: expense.budget_id || '',
+      contractor_id: expense.contractor_id || '',
+      amount: expense.amount,
+      date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      description: expense.description
+    });
+    setIsModalOpen(true);
   };
 
   const availableBudgets = budgets.filter(b => b.project_id.toString() === projectId);
@@ -82,13 +116,20 @@ export function Expenses() {
           <h1 className="text-2xl font-bold text-text-primary">הוצאות וחשבוניות</h1>
           <p className="text-text-secondary text-sm">מעקב אחר כלל ההוצאות בפרויקטים</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          הוצאה חדשה
-        </button>
+        <div className="flex items-center gap-4">
+          <AIExcelUpload projectId={projectId} targetTable="expenses" onSuccess={fetchExpenses} />
+          <button 
+            onClick={() => {
+              setEditingId(null);
+              setFormData({ project_id: projectId, budget_id: '', contractor_id: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' });
+              setIsModalOpen(true);
+            }}
+            className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            הוצאה חדשה
+          </button>
+        </div>
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
@@ -100,6 +141,7 @@ export function Expenses() {
               <th className="px-6 py-4 font-medium">סעיף תקציבי</th>
               <th className="px-6 py-4 font-medium">תאריך</th>
               <th className="px-6 py-4 font-medium">סכום</th>
+              <th className="px-6 py-4 font-medium w-24">פעולות</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -119,16 +161,26 @@ export function Expenses() {
                 </td>
                 <td className="px-6 py-4 text-sm text-text-secondary">{new Date(e.date).toLocaleDateString('he-IL')}</td>
                 <td className="px-6 py-4 font-bold text-text-primary">{formatCurrency(e.amount)}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleEdit(e)} className="p-1 text-text-muted hover:text-blue-500 transition-colors" title="ערוך">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(e.id)} className="p-1 text-text-muted hover:text-red-500 transition-colors" title="מחק">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {expenses.length === 0 && (
-              <tr><td colSpan="5" className="px-6 py-8 text-center text-text-muted">אין הוצאות במערכת.</td></tr>
+              <tr><td colSpan="6" className="px-6 py-8 text-center text-text-muted">אין הוצאות במערכת.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="הוספת הוצאה חדשה">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "עריכת הוצאה" : "הוספת הוצאה חדשה"}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">סעיף תקציבי</label>

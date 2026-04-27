@@ -203,3 +203,62 @@ export const askQuestion = async (projectId, question) => {
     throw error;
   }
 };
+
+/**
+ * קריאת נתונים מקובץ אקסל/CSV והמרתם למערך JSON
+ */
+export const extractDataFromExcel = async (filePath, mimeType, targetTable) => {
+  try {
+    const { genAI, fileManager } = getGeminiClients();
+    
+    // Upload file to Gemini
+    console.log(`Uploading spreadsheet ${filePath} to Gemini...`);
+    const uploadResponse = await fileManager.uploadFile(filePath, {
+      mimeType: mimeType || 'text/csv',
+      displayName: "spreadsheet_import"
+    });
+    
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
+    let schemaPrompt = '';
+    if (targetTable === 'budgets') {
+      schemaPrompt = 'category (string), total_amount (number), approved_date (YYYY-MM-DD)';
+    } else if (targetTable === 'expenses') {
+      schemaPrompt = 'description (string), contractor_name (string), budget_category (string), amount (number), date (YYYY-MM-DD)';
+    } else if (targetTable === 'incomes') {
+      schemaPrompt = 'description (string), amount (number), date (YYYY-MM-DD)';
+    } else if (targetTable === 'contractors') {
+      schemaPrompt = 'name (string), specialization (string), phone (string), email (string)';
+    }
+
+    const prompt = `This is a spreadsheet containing data for the "${targetTable}" table. 
+Please extract all the rows from this file and return them strictly as a JSON array of objects.
+Do not include any markdown formatting like \`\`\`json. 
+Map the columns to the best of your ability to match this schema for each object:
+{ ${schemaPrompt} }
+If a field is missing, leave it empty or null. Try to convert dates to YYYY-MM-DD format. Convert amounts to numbers.`;
+
+    console.log(`Extracting data for ${targetTable}...`);
+    const result = await model.generateContent([
+      {
+        fileData: {
+          mimeType: uploadResponse.file.mimeType,
+          fileUri: uploadResponse.file.uri
+        }
+      },
+      { text: prompt }
+    ]);
+    
+    const textResponse = result.response.text();
+    console.log('Gemini Extraction Response:', textResponse.substring(0, 200) + '...');
+    
+    // Clean response (sometimes it wraps in markdown even when asked not to)
+    let cleanText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    const parsedData = JSON.parse(cleanText);
+    return parsedData;
+  } catch (error) {
+    console.error('Error extracting data from spreadsheet:', error);
+    throw error;
+  }
+};

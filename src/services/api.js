@@ -93,5 +93,22 @@ export const api = {
     });
     if (!response.ok) throw new Error('Failed to create expense');
     return response.json();
+  },
+  updateResource: async (resourceType, id, data) => {
+    // resourceType e.g., 'budgets', 'expenses', 'incomes'
+    const response = await fetch(`${API_BASE_URL}/${resourceType}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error(`Failed to update ${resourceType}`);
+    return response.json();
+  },
+  deleteResource: async (resourceType, id) => {
+    const response = await fetch(`${API_BASE_URL}/${resourceType}/${id}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error(`Failed to delete ${resourceType}`);
+    return response.json();
   }
 };

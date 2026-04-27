@@ -30,23 +30,60 @@ export function ProjectGantt({ projectId }) {
     fetchTasks();
   }, [projectId]);
 
-  const handleAddTask = async (e) => {
+  const [editingId, setEditingId] = useState(null);
+
+  const calculateDays = (start, end) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    const diffTime = Math.abs(e - s);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+  };
+
+  const handleEditTask = (task) => {
+    setEditingId(task.id);
+    setNewTask({
+      name: task.name,
+      start_date: new Date(task.start_date).toISOString().split('T')[0],
+      end_date: new Date(task.end_date).toISOString().split('T')[0],
+      progress: task.progress || 0
+    });
+    setIsAdding(true);
+  };
+
+  const handleDeleteTask = async (id) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק משימה זו?')) return;
+    try {
+      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      fetchTasks();
+    } catch (error) {
+      console.error('Error deleting task', error);
+    }
+  };
+
+  const submitTask = async (e) => {
     e.preventDefault();
     if (!newTask.name || !newTask.start_date || !newTask.end_date) return;
     
     try {
-      const res = await fetch(`/api/projects/${projectId}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask)
-      });
-      if (res.ok) {
-        setNewTask({ name: '', start_date: '', end_date: '', progress: 0 });
-        setIsAdding(false);
-        fetchTasks();
+      if (editingId) {
+        await fetch(`/api/tasks/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newTask)
+        });
+      } else {
+        await fetch(`/api/projects/${projectId}/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newTask)
+        });
       }
+      setNewTask({ name: '', start_date: '', end_date: '', progress: 0 });
+      setIsAdding(false);
+      setEditingId(null);
+      fetchTasks();
     } catch (error) {
-      console.error('Error adding task', error);
+      console.error('Error saving task', error);
     }
   };
 
@@ -92,42 +129,6 @@ export function ProjectGantt({ projectId }) {
     return <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-[var(--color-brand)]" /></div>;
   }
 
-  // Calculate timeline bounds
-  const getBounds = () => {
-    if (tasks.length === 0) {
-      const today = new Date();
-      const nextMonth = new Date(today);
-      nextMonth.setMonth(today.getMonth() + 1);
-      return { minDate: today, maxDate: nextMonth, totalDays: 30 };
-    }
-    
-    const dates = tasks.flatMap(t => [new Date(t.start_date), new Date(t.end_date)]);
-    const minDate = new Date(Math.min(...dates));
-    const maxDate = new Date(Math.max(...dates));
-    
-    // Add some padding
-    minDate.setDate(minDate.getDate() - 5);
-    maxDate.setDate(maxDate.getDate() + 5);
-    
-    const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
-    return { minDate, maxDate, totalDays };
-  };
-
-  const { minDate, totalDays } = getBounds();
-
-  const getTaskStyle = (task) => {
-    const start = new Date(task.start_date);
-    const end = new Date(task.end_date);
-    
-    const leftPercent = Math.max(0, ((start - minDate) / (1000 * 60 * 60 * 24)) / totalDays * 100);
-    const widthPercent = Math.max(2, ((end - start) / (1000 * 60 * 60 * 24)) / totalDays * 100);
-    
-    return {
-      left: `${leftPercent}%`,
-      width: `${widthPercent}%`,
-    };
-  };
-
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border p-6 mt-8 overflow-hidden">
       <div className="flex justify-between items-center mb-6">
@@ -158,7 +159,7 @@ export function ProjectGantt({ projectId }) {
       </div>
 
       {isAdding && (
-        <form onSubmit={handleAddTask} className="bg-surface-hover p-4 rounded-xl border border-border mb-6 flex flex-wrap gap-4 items-end">
+        <form onSubmit={submitTask} className="bg-surface-hover p-4 rounded-xl border border-border mb-6 flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-xs font-medium text-text-secondary mb-1">שם המשימה/שלב</label>
             <input 
@@ -259,60 +260,68 @@ export function ProjectGantt({ projectId }) {
           <p className="text-sm text-text-muted mt-1">הוסף משימה חדשה כדי להתחיל לעקוב אחר התקדמות הבניה</p>
         </div>
       ) : (
-        <div className="overflow-x-auto pb-4">
-          <div className="min-w-[800px]">
-            {/* Gantt Header */}
-            <div className="flex border-b border-border pb-2 mb-4 text-sm font-medium text-text-secondary">
-              <div className="w-1/3 shrink-0 px-2">שם המשימה / התקדמות</div>
-              <div className="w-2/3 relative h-6 border-l border-border border-dashed">
-                <span className="absolute left-0 -translate-x-1/2 bg-surface px-2">{minDate.toLocaleDateString('he-IL', {day:'numeric', month:'short'})}</span>
-                <span className="absolute left-1/2 -translate-x-1/2 bg-surface px-2 text-xs opacity-50">ציר זמן (Gantt)</span>
-                <span className="absolute right-0 translate-x-1/2 bg-surface px-2">סיום צפוי</span>
-              </div>
-            </div>
-
-            {/* Gantt Rows */}
-            <div className="space-y-3">
-              {tasks.map(task => (
-                <div key={task.id} className="flex items-center group">
-                  <div className="w-1/3 shrink-0 pr-2 pl-4 flex flex-col justify-center">
-                    <span className="font-medium text-text-primary text-sm truncate">{task.name}</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max="100" 
-                        value={task.progress} 
-                        onChange={(e) => updateProgress(task, parseInt(e.target.value))}
-                        className="w-24 h-1.5 bg-border rounded-lg appearance-none cursor-pointer accent-[var(--color-brand)]"
-                      />
-                      <span className="text-xs text-text-muted w-8">{task.progress}%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="w-2/3 relative h-10 border-l border-border/50 border-dashed bg-surface-hover/30 rounded-r-lg">
-                    <div 
-                      className="absolute h-6 top-2 rounded-md shadow-sm flex items-center overflow-hidden"
-                      style={{
-                        ...getTaskStyle(task),
-                        backgroundColor: task.progress === 100 ? '#10b981' : 'var(--color-brand)',
-                      }}
-                      title={`${task.name} (${new Date(task.start_date).toLocaleDateString('he-IL')} - ${new Date(task.end_date).toLocaleDateString('he-IL')})`}
-                    >
-                      {/* Progress Fill inside the bar */}
-                      <div 
-                        className="absolute left-0 top-0 bottom-0 bg-white/20"
-                        style={{ width: `${task.progress}%` }}
-                      />
-                      
-                      {task.progress === 100 && <CheckCircle2 className="w-3 h-3 text-white absolute left-1.5 z-10" />}
-                      {task.progress > 0 && task.progress < 100 && <PlayCircle className="w-3 h-3 text-white absolute left-1.5 z-10 opacity-70" />}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right">
+            <thead className="bg-surface-hover/50 border-b border-border text-sm text-text-secondary">
+              <tr>
+                <th className="px-4 py-3 font-medium">שם המשימה/שלב</th>
+                <th className="px-4 py-3 font-medium">תאריך התחלה</th>
+                <th className="px-4 py-3 font-medium">תאריך סיום צפוי</th>
+                <th className="px-4 py-3 font-medium text-center">משך (ימים)</th>
+                <th className="px-4 py-3 font-medium">התקדמות</th>
+                <th className="px-4 py-3 font-medium text-center w-24">פעולות</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {tasks.map(task => {
+                const days = calculateDays(task.start_date, task.end_date);
+                const isComplete = task.progress === 100;
+                
+                return (
+                  <tr key={task.id} className="hover:bg-surface-hover/30 transition-colors">
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        {isComplete ? (
+                          <CheckCircle2 className="w-5 h-5 text-[#10b981]" />
+                        ) : (
+                          <div className={`w-3 h-3 rounded-full ${task.progress > 0 ? 'bg-[var(--color-brand)]' : 'bg-gray-300'}`}></div>
+                        )}
+                        <span className={`font-medium ${isComplete ? 'text-text-secondary line-through' : 'text-text-primary'}`}>{task.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-text-secondary">{new Date(task.start_date).toLocaleDateString('he-IL')}</td>
+                    <td className="px-4 py-4 text-sm text-text-secondary font-medium">{new Date(task.end_date).toLocaleDateString('he-IL')}</td>
+                    <td className="px-4 py-4 text-sm text-text-primary text-center">
+                      <span className="bg-surface border border-border px-2 py-1 rounded-md">{days}</span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="100" 
+                          value={task.progress} 
+                          onChange={(e) => updateProgress(task, parseInt(e.target.value))}
+                          className="flex-1 h-2 bg-border rounded-lg appearance-none cursor-pointer accent-[var(--color-brand)]"
+                        />
+                        <span className="text-xs font-medium text-text-secondary w-8 text-left">{task.progress}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => handleEditTask(task)} className="text-text-muted hover:text-[var(--color-brand)] transition-colors" title="עריכה">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                        </button>
+                        <button onClick={() => handleDeleteTask(task.id)} className="text-text-muted hover:text-red-500 transition-colors" title="מחיקה">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

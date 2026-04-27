@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Loader2, Plus, Wallet } from 'lucide-react';
+import { Loader2, Plus, Wallet, Pencil, Trash2 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
+import { AIExcelUpload } from '../components/ui/AIExcelUpload';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(value);
@@ -17,6 +18,7 @@ export function Budget() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ project_id: projectId, category: '', total_amount: '', approved_date: new Date().toISOString().split('T')[0] });
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -49,19 +51,49 @@ export function Budget() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.createBudget({
-        ...formData,
-        project_id: projectId,
-        total_amount: Number(formData.total_amount)
-      });
+      if (editingId) {
+        await api.updateResource('budgets', editingId, {
+          ...formData,
+          project_id: projectId,
+          total_amount: Number(formData.total_amount)
+        });
+      } else {
+        await api.createBudget({
+          ...formData,
+          project_id: projectId,
+          total_amount: Number(formData.total_amount)
+        });
+      }
       setIsModalOpen(false);
+      setEditingId(null);
       setFormData({ project_id: projectId, category: '', total_amount: '', approved_date: new Date().toISOString().split('T')[0] });
       await fetchData();
     } catch (error) {
-      console.error('Failed to create budget:', error);
+      console.error('Failed to save budget:', error);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק שורה זו?')) return;
+    try {
+      await api.deleteResource('budgets', id);
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    }
+  };
+
+  const handleEdit = (budget) => {
+    setEditingId(budget.id);
+    setFormData({
+      project_id: budget.project_id,
+      category: budget.category,
+      total_amount: budget.total_amount,
+      approved_date: new Date(budget.approved_date).toISOString().split('T')[0]
+    });
+    setIsModalOpen(true);
   };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>;
@@ -73,13 +105,20 @@ export function Budget() {
           <h1 className="text-2xl font-bold text-text-primary">ניהול תקציב</h1>
           <p className="text-text-secondary text-sm">ניהול ומעקב אחר מסגרות התקציב לפרויקטים</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          הוסף סעיף תקציבי
-        </button>
+        <div className="flex items-center gap-4">
+          <AIExcelUpload projectId={projectId} targetTable="budgets" onSuccess={fetchData} />
+          <button 
+            onClick={() => {
+              setEditingId(null);
+              setFormData({ project_id: projectId, category: '', total_amount: '', approved_date: new Date().toISOString().split('T')[0] });
+              setIsModalOpen(true);
+            }}
+            className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            הוסף סעיף תקציבי
+          </button>
+        </div>
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
@@ -89,6 +128,7 @@ export function Budget() {
               <th className="px-6 py-4 font-medium">סעיף/קטגוריה</th>
               <th className="px-6 py-4 font-medium">תאריך אישור</th>
               <th className="px-6 py-4 font-medium">סכום מאושר</th>
+              <th className="px-6 py-4 font-medium w-24">פעולות</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -102,16 +142,26 @@ export function Budget() {
                 </td>
                 <td className="px-6 py-4 text-sm text-text-secondary">{new Date(b.approved_date).toLocaleDateString('he-IL')}</td>
                 <td className="px-6 py-4 font-bold text-[#10b981]">{formatCurrency(b.total_amount)}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleEdit(b)} className="p-1 text-text-muted hover:text-blue-500 transition-colors" title="ערוך">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(b.id)} className="p-1 text-text-muted hover:text-red-500 transition-colors" title="מחק">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {budgets.length === 0 && (
-              <tr><td colSpan="3" className="px-6 py-8 text-center text-text-muted">לא נמצאו סעיפי תקציב במערכת.</td></tr>
+              <tr><td colSpan="4" className="px-6 py-8 text-center text-text-muted">לא נמצאו סעיפי תקציב במערכת.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="הוספת סעיף תקציבי חדש">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "עריכת סעיף תקציבי" : "הוספת סעיף תקציבי חדש"}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">שם הסעיף (קטגוריה)</label>
