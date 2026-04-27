@@ -23,12 +23,24 @@ const navItems = [
   { name: 'דוחות', path: '/reports', icon: BarChart3 },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isOpen, setIsOpen }) {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   return (
     <>
-    <aside className="w-64 bg-surface border-l border-border flex flex-col h-screen fixed right-0 top-0 text-text-primary z-20">
+      {/* רקע שחור חצי שקוף כשפותחים את התפריט בטלפון */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-20 md:hidden transition-opacity"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* התפריט עצמו - מוסתר בטלפון אלא אם isOpen הוא true, ומוצג תמיד במסכים גדולים */}
+      <aside className={clsx(
+        "w-64 bg-surface border-l border-border flex flex-col h-screen fixed right-0 top-0 text-text-primary z-30 transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+      )}>
       <div className="p-6 flex items-center justify-center border-b border-border">
         <img src="https://barsuf.co.il/wp-content/uploads/2019/07/logo-barsuf.png" alt="Barsuf Logo" className="h-10 object-contain" />
       </div>
@@ -40,6 +52,7 @@ export function Sidebar() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={() => setIsOpen(false)} // סוגר את התפריט בטלפון אחרי שלוחצים על קישור
               className={({ isActive }) => clsx(
                 "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium",
                 isActive 

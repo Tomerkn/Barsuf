@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Search, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { Bell, Search, User, LogOut, Settings as SettingsIcon, Menu } from 'lucide-react';
 
-export function Header() {
+export function Header({ toggleMobileMenu }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
@@ -16,9 +16,17 @@ export function Header() {
   }, []);
 
   return (
-    <header className="h-16 bg-background border-b border-border flex items-center justify-between px-6 sticky top-0 z-10">
-      <div className="flex-1 max-w-xl">
-        <div className="relative">
+    <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 md:px-6 sticky top-0 z-10">
+      <div className="flex items-center gap-3 flex-1 max-w-xl">
+        {/* כפתור תפריט המבורגר (מופיע רק במסכים קטנים) כדי לפתוח את תפריט הצד */}
+        <button 
+          onClick={toggleMobileMenu}
+          className="md:hidden p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-surface-hover transition-colors"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+
+        <div className="relative w-full hidden sm:block">
           <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input 
             type="text" 
