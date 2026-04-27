@@ -27,6 +27,21 @@ export const api = {
     if (!response.ok) throw new Error('Failed to fetch expenses');
     return response.json();
   },
+  getIncomes: async (projectId = '') => {
+    const url = projectId ? `${API_BASE_URL}/incomes?projectId=${projectId}` : `${API_BASE_URL}/incomes`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch incomes');
+    return response.json();
+  },
+  createIncome: async (data) => {
+    const response = await fetch(`${API_BASE_URL}/incomes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create income');
+    return response.json();
+  },
   getContractors: async () => {
     const response = await fetch(`${API_BASE_URL}/contractors`);
     if (!response.ok) throw new Error('Failed to fetch contractors');

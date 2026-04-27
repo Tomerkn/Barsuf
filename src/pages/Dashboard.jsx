@@ -23,7 +23,7 @@ export function Dashboard() {
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
-        const analytics = await api.getProjectAnalytics(selectedProjectId);
+        const analytics = await api.getProjectAnalytics(projectId);
         setData(analytics);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -44,7 +44,7 @@ export function Dashboard() {
 
   if (!data) return <div className="p-8">שגיאה בטעינת נתונים או פרויקט לא נמצא.</div>;
 
-  const { project, totalBudget, actualExecution, variance, utilization, breakdown } = data;
+  const { project, totalBudget, actualExecution, totalIncomes, profitLoss, variance, utilization, breakdown } = data;
 
   const isOverspent = variance > 0;
   const statusColor = isOverspent ? 'bg-red-500' : 'bg-[#10b981]';
@@ -79,19 +79,24 @@ export function Dashboard() {
           icon={Wallet} 
         />
         <KpiCard 
-          title="ביצוע בפועל" 
+          title="סה״כ הוצאות (ביצוע)" 
           value={formatCurrency(actualExecution)} 
           icon={TrendingUp} 
         />
         <KpiCard 
-          title="סטייה (Variance)" 
-          value={formatCurrency(Math.abs(variance))} 
-          subtext={isOverspent ? 'חריגה מהתקציב' : 'יתרה בתקציב'}
-          status={isOverspent ? 'danger' : 'ok'}
+          title="סה״כ הכנסות" 
+          value={formatCurrency(totalIncomes)} 
+          icon={Wallet} 
+        />
+        <KpiCard 
+          title="רווח והפסד (P&L)" 
+          value={formatCurrency(Math.abs(profitLoss))} 
+          subtext={profitLoss >= 0 ? 'רווח' : 'הפסד'}
+          status={profitLoss >= 0 ? 'ok' : 'danger'}
           icon={AlertTriangle} 
         />
         <KpiCard 
-          title="אחוז ניצול" 
+          title="אחוז ניצול תקציב" 
           value={`${utilization.toFixed(1)}%`} 
           status={utilization > 100 ? 'danger' : utilization > 90 ? 'warning' : 'ok'}
           icon={Percent} 

@@ -12,6 +12,7 @@ import { Reports } from './pages/Reports';
 import { Overview } from './pages/Overview';
 import { ProjectGanttPage } from './pages/ProjectGanttPage';
 import { ProjectMediaPage } from './pages/ProjectMediaPage';
+import { ProjectIncomes } from './pages/ProjectIncomes';
 import { AIFloatingWidget } from './components/ui/AIFloatingWidget';
 
 function AppContent() {
@@ -34,6 +35,7 @@ function AppContent() {
             <Route path="/projects/:projectId" element={<Dashboard />} />
             <Route path="/projects/:projectId/gantt" element={<ProjectGanttPage />} />
             <Route path="/projects/:projectId/budget" element={<Budget />} />
+            <Route path="/projects/:projectId/incomes" element={<ProjectIncomes />} />
             <Route path="/projects/:projectId/expenses" element={<Expenses />} />
             <Route path="/projects/:projectId/contractors" element={<Contractors />} />
             <Route path="/projects/:projectId/orders" element={<Orders />} />

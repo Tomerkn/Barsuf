@@ -95,6 +95,15 @@ function initDB() {
       status TEXT DEFAULT 'pending',
       FOREIGN KEY (project_id) REFERENCES projects(id)
     );
+
+    CREATE TABLE IF NOT EXISTS incomes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id)
+    );
   `);
   
   // Migration to add 'folder' column to existing project_media table

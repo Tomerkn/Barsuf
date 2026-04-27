@@ -27,14 +27,14 @@ const getGeminiClients = () => {
 /**
  * העלאת מסמך לג'מיני ושמירת המזהה (URI) שלו בזיכרון המקומי
  */
-export const ingestDocument = async (projectId, filePath) => {
+export const ingestDocument = async (projectId, filePath, mimeType = "application/pdf") => {
   try {
     const { fileManager } = getGeminiClients();
     
     console.log(`Uploading ${filePath} to Gemini File API...`);
     // העלאת הקובץ לשרתים של גוגל - הם יודעים להתמודד עם שרטוטים, טבלאות ו-PDF ענקיים בקלות
     const uploadResponse = await fileManager.uploadFile(filePath, {
-      mimeType: "application/pdf",
+      mimeType: mimeType,
       displayName: `Project ${projectId} Document`
     });
 
@@ -60,6 +60,53 @@ export const ingestDocument = async (projectId, filePath) => {
   } catch (error) {
     console.error('Error ingesting document via Gemini:', error);
     throw error;
+  }
+};
+
+/**
+ * ניתוח תמונת קבלה והחזרת פרטי ההוצאה
+ */
+export const analyzeReceipt = async (filePath, mimeType) => {
+  try {
+    const { fileManager, genAI } = getGeminiClients();
+    
+    console.log(`Uploading receipt ${filePath} to Gemini File API for OCR...`);
+    const uploadResponse = await fileManager.uploadFile(filePath, {
+      mimeType: mimeType,
+      displayName: `Receipt for OCR`
+    });
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
+    const prompt = `
+      אתה מומחה להנהלת חשבונות. לפניך קבלה או חשבונית. 
+      חלץ את המידע הבא מהתמונה והחזר אותו אך ורק בפורמט JSON תקין, ללא טקסט מקדים וללא תגיות מיוחדות כמו \`\`\`json.
+      
+      המפתחות ב-JSON יהיו:
+      - amount: הסכום הסופי לתשלום במספרים בלבד (ללא סמל המטבע. לדוגמה: 150.5).
+      - supplier: שם הספק או בית העסק (מחרוזת).
+      - date: תאריך העסקה בפורמט YYYY-MM-DD. אם לא מצאת, השאר ריק.
+      - description: תיאור קצר של המהות העיקרית של הקבלה (עד 5 מילים. לדוגמה: "כלי עבודה", "חומרי בניין", או "ארוחת צהריים").
+    `;
+
+    const result = await model.generateContent([
+      {
+        fileData: {
+          mimeType: uploadResponse.file.mimeType,
+          fileUri: uploadResponse.file.uri
+        }
+      },
+      { text: prompt }
+    ]);
+
+    let responseText = result.response.text();
+    // Clean up potential markdown formatting
+    responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(responseText);
+  } catch (error) {
+    console.error('Error analyzing receipt via Gemini:', error);
+    return null;
   }
 };
 

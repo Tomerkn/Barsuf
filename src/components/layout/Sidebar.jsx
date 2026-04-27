@@ -10,6 +10,7 @@ import {
   BarChart3,
   Calendar,
   FolderOpen,
+  ArrowUpRight,
   Settings
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -23,6 +24,7 @@ const globalNavItems = [
 const getProjectNavItems = (projectId) => [
   { name: 'דאשבורד פרויקט', path: `/projects/${projectId}`, icon: LayoutDashboard },
   { name: 'תקציב', path: `/projects/${projectId}/budget`, icon: Wallet },
+  { name: 'הכנסות', path: `/projects/${projectId}/incomes`, icon: ReceiptText },
   { name: 'הוצאות', path: `/projects/${projectId}/expenses`, icon: ReceiptText },
   { name: 'קבלנים', path: `/projects/${projectId}/contractors`, icon: HardHat },
   { name: 'הזמנות רכש', path: `/projects/${projectId}/orders`, icon: ClipboardList },

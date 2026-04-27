@@ -6,7 +6,7 @@ import fs from 'fs';
 import { Storage } from '@google-cloud/storage';
 import db from './db.js';
 import './seed.js'; // Ensure database is seeded
-import { ingestDocument, askQuestion } from './ai.js';
+import { ingestDocument, askQuestion, analyzeReceipt } from './ai.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -121,6 +121,19 @@ app.post('/api/orders', (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
+// Incomes API
+app.get('/api/incomes', (req, res) => {
+  const incomes = db.prepare('SELECT incomes.*, projects.name as project_name FROM incomes LEFT JOIN projects ON incomes.project_id = projects.id ORDER BY incomes.date DESC').all();
+  res.json(incomes);
+});
+
+app.post('/api/incomes', (req, res) => {
+  const { project_id, description, amount, date } = req.body;
+  const insert = db.prepare('INSERT INTO incomes (project_id, description, amount, date) VALUES (?, ?, ?, ?)');
+  const result = insert.run(project_id, description, amount, date || new Date().toISOString().split('T')[0]);
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
 // Dashboard Analytics API
 app.get('/api/projects/:id/analytics', (req, res) => {
   const projectId = req.params.id;
@@ -137,6 +150,11 @@ app.get('/api/projects/:id/analytics', (req, res) => {
   const variance = actualExecution - totalBudget;
   const utilization = totalBudget > 0 ? (actualExecution / totalBudget) * 100 : 0;
 
+  const totalIncomesRow = db.prepare('SELECT SUM(amount) as total FROM incomes WHERE project_id = ?').get(projectId);
+  const totalIncomes = totalIncomesRow.total || 0;
+
+  const profitLoss = totalIncomes - actualExecution;
+
   // Breakdown by budget
   const breakdown = db.prepare(`
     SELECT b.id, b.category, b.total_amount as budget, SUM(e.amount) as actual 
@@ -150,6 +168,8 @@ app.get('/api/projects/:id/analytics', (req, res) => {
     project,
     totalBudget,
     actualExecution,
+    totalIncomes,
+    profitLoss,
     variance,
     utilization,
     breakdown
@@ -223,6 +243,38 @@ app.post('/api/projects/:id/media', upload.single('file'), async (req, res) => {
     // Save to DB
     const insert = db.prepare('INSERT INTO project_media (project_id, filename, original_name, url, mime_type, folder, upload_date) VALUES (?, ?, ?, ?, ?, ?, ?)');
     insert.run(projectId, req.file.filename, originalName, publicUrl, mimeType, folder, new Date().toISOString());
+    
+    // AI Processing
+    try {
+      // 1. Always ingest into AI knowledge base for "Consult with AI"
+      await ingestDocument(projectId, filePath, mimeType);
+      
+      // 2. If it's a receipt, auto-extract expense
+      if (folder === 'קבלות') {
+        const receiptData = await analyzeReceipt(filePath, mimeType);
+        if (receiptData && receiptData.amount) {
+          // Find or create a "כללי" (General) budget for this project
+          let budget = db.prepare('SELECT id FROM budgets WHERE project_id = ? AND category = ?').get(projectId, 'כללי');
+          if (!budget) {
+            const insertBudget = db.prepare('INSERT INTO budgets (project_id, category, total_amount, approved_date) VALUES (?, ?, ?, ?)');
+            const info = insertBudget.run(projectId, 'כללי', 0, new Date().toISOString());
+            budget = { id: info.lastInsertRowid };
+          }
+
+          // Insert expense
+          const insertExpense = db.prepare('INSERT INTO expenses (project_id, budget_id, amount, date, description) VALUES (?, ?, ?, ?, ?)');
+          insertExpense.run(
+            projectId, 
+            budget.id, 
+            receiptData.amount, 
+            receiptData.date || new Date().toISOString().split('T')[0], 
+            receiptData.description || `קבלה: ${receiptData.supplier || 'ספק כללי'}`
+          );
+        }
+      }
+    } catch (aiError) {
+      console.error('AI Processing error (non-fatal):', aiError);
+    }
     
     // Clean up local file since it's uploaded to cloud
     if (fs.existsSync(filePath)) {
