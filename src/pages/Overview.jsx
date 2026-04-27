@@ -47,18 +47,18 @@ export function Overview() {
         <KpiCard 
           title="סה״כ פרויקטים" 
           value={activeProjectsCount.toString()} 
-          icon={<Briefcase className="w-5 h-5" />} 
+          icon={Briefcase} 
         />
         <KpiCard 
           title="פרויקטים בתקינות" 
           value={healthyProjects.toString()} 
-          icon={<CheckCircle className="w-5 h-5 text-green-500" />} 
+          icon={CheckCircle} 
         />
         <KpiCard 
           title="דורשים התערבות (חריגות)" 
           value={projectsWithAlerts.toString()} 
-          icon={<AlertTriangle className="w-5 h-5 text-red-500" />} 
-          trend={projectsWithAlerts > 0 ? "שים לב!" : ""}
+          icon={AlertTriangle} 
+          subtext={projectsWithAlerts > 0 ? "שים לב!" : ""}
         />
       </div>
 
