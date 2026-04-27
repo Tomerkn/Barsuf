@@ -8,6 +8,8 @@ import {
   HardHat, 
   ClipboardList, 
   BarChart3,
+  Calendar,
+  FolderOpen,
   Settings
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -24,6 +26,8 @@ const getProjectNavItems = (projectId) => [
   { name: 'הוצאות', path: `/projects/${projectId}/expenses`, icon: ReceiptText },
   { name: 'קבלנים', path: `/projects/${projectId}/contractors`, icon: HardHat },
   { name: 'הזמנות רכש', path: `/projects/${projectId}/orders`, icon: ClipboardList },
+  { name: 'לוח זמנים (Gantt)', path: `/projects/${projectId}/gantt`, icon: Calendar },
+  { name: 'מסמכים וגלריה', path: `/projects/${projectId}/media`, icon: FolderOpen },
   { name: 'דוחות', path: `/projects/${projectId}/reports`, icon: BarChart3 },
 ];
 

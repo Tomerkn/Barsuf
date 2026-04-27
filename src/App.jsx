@@ -9,6 +9,9 @@ import { Expenses } from './pages/Expenses';
 import { Budget } from './pages/Budget';
 import { Orders } from './pages/Orders';
 import { Reports } from './pages/Reports';
+import { Overview } from './pages/Overview';
+import { ProjectGanttPage } from './pages/ProjectGanttPage';
+import { ProjectMediaPage } from './pages/ProjectMediaPage';
 
 function App() {
   // מצב ששומר האם תפריט הצד פתוח במסכים קטנים (כמו טלפונים)
@@ -26,13 +29,15 @@ function App() {
           <main className="flex-1 overflow-y-auto">
             <Routes>
               <Route path="/" element={<Projects />} />
-              <Route path="/overview" element={<div className="p-8">דאשבורד ארגוני כללי - יפותח בהמשך</div>} />
+              <Route path="/overview" element={<Overview />} />
               
               <Route path="/projects/:projectId" element={<Dashboard />} />
+              <Route path="/projects/:projectId/gantt" element={<ProjectGanttPage />} />
               <Route path="/projects/:projectId/budget" element={<Budget />} />
               <Route path="/projects/:projectId/expenses" element={<Expenses />} />
               <Route path="/projects/:projectId/contractors" element={<Contractors />} />
               <Route path="/projects/:projectId/orders" element={<Orders />} />
+              <Route path="/projects/:projectId/media" element={<ProjectMediaPage />} />
               <Route path="/projects/:projectId/reports" element={<Reports />} />
               <Route path="*" element={<div className="p-8 text-center text-text-muted">עמוד בבנייה...</div>} />
             </Routes>
