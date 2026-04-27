@@ -10,6 +10,7 @@ export function ProjectChat({ projectId }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // סטייט חדש לאחוזי ההעלאה
   const [files, setFiles] = useState([]);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -46,26 +47,69 @@ export function ProjectChat({ projectId }) {
     }
 
     setUploading(true);
+    setUploadProgress(0);
+    
+    // מזהה ייחודי להודעת ההעלאה כדי שנוכל לעדכן אותה בזמן אמת
+    const uploadMsgId = Date.now();
+    setMessages(prev => [...prev, { id: uploadMsgId, type: 'system', text: `מתחיל העלאה של ${file.name}... 0%` }]);
+
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch(`${api.baseUrl}/projects/${projectId}/files`, {
-        method: 'POST',
-        body: formData,
+      // שימוש ב-XMLHttpRequest במקום fetch כדי לקבל אחוזי התקדמות אמיתיים מהדפדפן
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${api.baseUrl}/projects/${projectId}/files`);
+        
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percentComplete);
+            
+            setMessages(prev => prev.map(msg => 
+              msg.id === uploadMsgId ? { ...msg, text: `מעלה את ${file.name}... ${percentComplete}%` } : msg
+            ));
+            
+            // כשההעלאה לשרת מסתיימת, השרת מתחיל לסרוק את המסמך עם הבינה המלאכותית
+            if (percentComplete === 100) {
+              setMessages(prev => prev.map(msg => 
+                msg.id === uploadMsgId ? { ...msg, text: `ההעלאה הושלמה. ברבור סורק ומנתח את המסמך... 🦢` } : msg
+              ));
+            }
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            let errorMsg = 'ההעלאה נכשלה';
+            try {
+              const errData = JSON.parse(xhr.responseText);
+              if (errData.error) errorMsg = errData.error;
+            } catch (e) {}
+            reject(new Error(errorMsg));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('שגיאת רשת בזמן ההעלאה'));
+        xhr.send(formData);
       });
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Upload failed');
-      }
       
       await fetchFiles();
-      setMessages(prev => [...prev, { id: Date.now(), type: 'system', text: `הקובץ ${file.name} הועלה ועובד בהצלחה. כעת ניתן לשאול עליו שאלות.` }]);
+      // עדכון ההודעה כשהסריקה הסתיימה בהצלחה
+      setMessages(prev => prev.map(msg => 
+        msg.id === uploadMsgId ? { ...msg, text: `הקובץ ${file.name} נסרק ונלמד בהצלחה! 🎉 עכשיו אפשר לשאול עליו שאלות.` } : msg
+      ));
     } catch (error) {
       console.error('Error uploading file:', error);
+      // במקרה של שגיאה, נמחק את הודעת ה"מעלה..." ונקפיץ פופאפ מסודר
+      setMessages(prev => prev.filter(msg => msg.id !== uploadMsgId));
       alert(`שגיאה בהעלאת הקובץ:\n${error.message}`);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -166,7 +210,7 @@ export function ProjectChat({ projectId }) {
           <div className="flex justify-start">
             <div className="bg-surface border border-border p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-[var(--color-brand)]" />
-              <span className="text-sm text-text-secondary">מחפש במסמכים...</span>
+              <span className="text-sm text-text-secondary">ברבור חושב על התשובה... 🦢</span>
             </div>
           </div>
         )}
