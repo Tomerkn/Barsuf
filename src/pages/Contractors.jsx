@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { Loader2, Plus, HardHat, Phone, Mail } from 'lucide-react';
+import { Loader2, Plus, HardHat, Phone, Mail, Pencil, Trash2 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 
 export function Contractors() {
@@ -9,6 +9,7 @@ export function Contractors() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', specialization: '', phone: '', email: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchContractors = async () => {
     try {
@@ -29,15 +30,41 @@ export function Contractors() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.createContractor(formData);
+      if (editingId) {
+        await api.updateResource('contractors', editingId, formData);
+      } else {
+        await api.createContractor(formData);
+      }
       setIsModalOpen(false);
+      setEditingId(null);
       setFormData({ name: '', specialization: '', phone: '', email: '' });
       await fetchContractors();
     } catch (error) {
-      console.error('Failed to create contractor:', error);
+      console.error('Failed to save contractor:', error);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק קבלן זה?')) return;
+    try {
+      await api.deleteResource('contractors', id);
+      await fetchContractors();
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    }
+  };
+
+  const handleEdit = (contractor) => {
+    setEditingId(contractor.id);
+    setFormData({
+      name: contractor.name,
+      specialization: contractor.specialization || '',
+      phone: contractor.phone || '',
+      email: contractor.email || ''
+    });
+    setIsModalOpen(true);
   };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>;
@@ -50,7 +77,11 @@ export function Contractors() {
           <p className="text-text-secondary text-sm">מאגר קבלני ביצוע ויעוץ</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ name: '', specialization: '', phone: '', email: '' });
+            setIsModalOpen(true);
+          }}
           className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -66,6 +97,7 @@ export function Contractors() {
               <th className="px-6 py-4 font-medium">התמחות</th>
               <th className="px-6 py-4 font-medium">טלפון</th>
               <th className="px-6 py-4 font-medium">דוא"ל</th>
+              <th className="px-6 py-4 font-medium w-24">פעולות</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -82,6 +114,16 @@ export function Contractors() {
                 <td className="px-6 py-4 text-sm text-text-secondary">{c.specialization}</td>
                 <td className="px-6 py-4 text-sm text-text-primary flex items-center gap-2 mt-1"><Phone className="w-3.5 h-3.5 text-text-muted" dir="ltr" /> <span dir="ltr">{c.phone}</span></td>
                 <td className="px-6 py-4 text-sm text-text-primary"><div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-text-muted" /> {c.email}</div></td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleEdit(c)} className="p-1 text-text-muted hover:text-[var(--color-brand)] transition-colors" title="ערוך">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(c.id)} className="p-1 text-text-muted hover:text-red-500 transition-colors" title="מחק">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {contractors.length === 0 && (
@@ -91,7 +133,7 @@ export function Contractors() {
         </table>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="הוספת קבלן חדש">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "עריכת קבלן" : "הוספת קבלן חדש"}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">שם הקבלן / חברה</label>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Loader2, Plus, ClipboardList } from 'lucide-react';
+import { Loader2, Plus, ClipboardList, Pencil, Trash2 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 
 const formatCurrency = (value) => {
@@ -17,6 +17,7 @@ export function Orders() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ project_id: projectId, supplier_name: '', item_description: '', amount: '', order_date: new Date().toISOString().split('T')[0], status: 'פתוח' });
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -42,19 +43,51 @@ export function Orders() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.createOrder({
-        ...formData,
-        project_id: projectId,
-        amount: Number(formData.amount)
-      });
+      if (editingId) {
+        await api.updateResource('orders', editingId, {
+          ...formData,
+          project_id: projectId,
+          amount: Number(formData.amount)
+        });
+      } else {
+        await api.createOrder({
+          ...formData,
+          project_id: projectId,
+          amount: Number(formData.amount)
+        });
+      }
       setIsModalOpen(false);
+      setEditingId(null);
       setFormData({ project_id: projectId, supplier_name: '', item_description: '', amount: '', order_date: new Date().toISOString().split('T')[0], status: 'פתוח' });
       await fetchData();
     } catch (error) {
-      console.error('Failed to create order:', error);
+      console.error('Failed to save order:', error);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק הזמנה זו?')) return;
+    try {
+      await api.deleteResource('orders', id);
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    }
+  };
+
+  const handleEdit = (order) => {
+    setEditingId(order.id);
+    setFormData({
+      project_id: order.project_id,
+      supplier_name: order.supplier_name || '',
+      item_description: order.item_description || '',
+      amount: order.amount,
+      order_date: order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      status: order.status || 'פתוח'
+    });
+    setIsModalOpen(true);
   };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>;
@@ -67,7 +100,11 @@ export function Orders() {
           <p className="text-text-secondary text-sm">מעקב ובקרת הזמנות רכש מול ספקים וקבלנים</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ project_id: projectId, supplier_name: '', item_description: '', amount: '', order_date: new Date().toISOString().split('T')[0], status: 'פתוח' });
+            setIsModalOpen(true);
+          }}
           className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -84,6 +121,7 @@ export function Orders() {
               <th className="px-6 py-4 font-medium">תיאור</th>
               <th className="px-6 py-4 font-medium">תאריך</th>
               <th className="px-6 py-4 font-medium">סכום</th>
+              <th className="px-6 py-4 font-medium w-24">פעולות</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -96,11 +134,21 @@ export function Orders() {
                 <td className="px-6 py-4 text-sm text-text-primary">{o.item_description}</td>
                 <td className="px-6 py-4 text-sm text-text-secondary">{new Date(o.order_date).toLocaleDateString('he-IL')}</td>
                 <td className="px-6 py-4 font-bold text-text-primary">{formatCurrency(o.amount)}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleEdit(o)} className="p-1 text-text-muted hover:text-[var(--color-brand)] transition-colors" title="ערוך">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(o.id)} className="p-1 text-text-muted hover:text-red-500 transition-colors" title="מחק">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan="5" className="px-6 py-12 text-center text-text-muted flex flex-col items-center gap-2">
+                <td colSpan="6" className="px-6 py-12 text-center text-text-muted flex flex-col items-center gap-2">
                   <ClipboardList className="w-8 h-8 opacity-50" />
                   <span>אין הזמנות רכש פתוחות במערכת.</span>
                 </td>
@@ -110,7 +158,7 @@ export function Orders() {
         </table>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="הוספת הזמנת רכש (PO) חדשה">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "עריכת הזמנה" : "הוספת הזמנת רכש (PO) חדשה"}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">שם הספק / קבלן</label>

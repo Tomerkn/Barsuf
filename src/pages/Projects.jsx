@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { Loader2, Plus, Briefcase } from 'lucide-react';
+import { Loader2, Plus, Briefcase, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Modal } from '../components/ui/Modal';
 
@@ -10,6 +10,7 @@ export function Projects() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', location: '', end_date: '', status: 'תקין' });
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchProjects = async () => {
     try {
@@ -30,15 +31,45 @@ export function Projects() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.createProject(formData);
+      if (editingId) {
+        await api.updateResource('projects', editingId, formData);
+      } else {
+        await api.createProject(formData);
+      }
       setIsModalOpen(false);
+      setEditingId(null);
       setFormData({ name: '', location: '', end_date: '', status: 'תקין' });
       await fetchProjects();
     } catch (error) {
-      console.error('Failed to create project:', error);
+      console.error('Failed to save project:', error);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDelete = async (id, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק פרויקט זה? פעולה זו תמחק גם את כל הנתונים המקושרים אליו!')) return;
+    try {
+      await api.deleteResource('projects', id);
+      await fetchProjects();
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    }
+  };
+
+  const handleEdit = (project, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingId(project.id);
+    setFormData({
+      name: project.name,
+      location: project.location || '',
+      end_date: project.end_date ? new Date(project.end_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      status: project.status || 'תקין'
+    });
+    setIsModalOpen(true);
   };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>;
@@ -51,7 +82,11 @@ export function Projects() {
           <p className="text-text-secondary text-sm">ניהול כל הפרויקטים הפעילים בחברה</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ name: '', location: '', end_date: '', status: 'תקין' });
+            setIsModalOpen(true);
+          }}
           className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -66,9 +101,17 @@ export function Projects() {
               <div className="w-10 h-10 rounded-lg bg-[var(--color-brand)]/10 flex items-center justify-center text-[var(--color-brand)]">
                 <Briefcase className="w-5 h-5" />
               </div>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${project.status === 'תקין' ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-red-500/10 text-red-600'}`}>
-                {project.status}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${project.status === 'תקין' ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-red-500/10 text-red-600'}`}>
+                  {project.status}
+                </span>
+                <button onClick={(e) => handleEdit(project, e)} className="p-1 text-text-muted hover:text-[var(--color-brand)] transition-colors" title="ערוך">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={(e) => handleDelete(project.id, e)} className="p-1 text-text-muted hover:text-red-500 transition-colors" title="מחק">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <h3 className="text-lg font-bold text-text-primary mb-1">{project.name}</h3>
             <p className="text-sm text-text-secondary mb-4">{project.location}</p>
@@ -80,7 +123,7 @@ export function Projects() {
           </Link>
         ))}
       </div>
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="הוספת פרויקט חדש">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "עריכת פרויקט" : "הוספת פרויקט חדש"}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">שם הפרויקט</label>
