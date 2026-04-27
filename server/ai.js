@@ -125,6 +125,26 @@ export const askQuestion = async (projectId, question) => {
       console.error("Could not fetch project media for prompt", e);
     }
 
+    // צירוף המשימות ולוחות הזמנים של הפרויקט
+    try {
+      let tasks = [];
+      try {
+        tasks = db.prepare('SELECT name, start_date, end_date, progress FROM tasks WHERE project_id = ? ORDER BY start_date ASC').all(projectId);
+      } catch (e) {
+        // Table might not exist yet if migration failed
+      }
+
+      if (tasks.length > 0) {
+        fileListText += "\n\nלהלן לוח הזמנים (Gantt) המוגדר לפרויקט כרגע:\n";
+        for (const task of tasks) {
+          fileListText += `- שלב/משימה: "${task.name}", תאריכים: ${task.start_date} עד ${task.end_date}, התקדמות: ${task.progress}%\n`;
+        }
+        fileListText += "\nאם המשתמש שואל לגבי לוחות זמנים, שלבים או התקדמות הפרויקט, תענה לו על בסיס נתוני הגאנט האלו.\n";
+      }
+    } catch (e) {
+      console.error("Could not fetch project tasks for prompt", e);
+    }
+
     // הוספת טקסט הרשימה להנחיה המרכזית
     promptParts.push({ text: `\n\n${fileListText}\n\nאם המשתמש שואל אילו קבצים/מסמכים יש לפרויקט, תסכם לו את הרשימה הנ"ל בצורה יפה.` });
 

@@ -6,6 +6,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 import { api } from '../services/api';
 import { AIFloatingWidget } from '../components/ui/AIFloatingWidget';
 import { ProjectMedia } from '../components/ui/ProjectMedia';
+import { ProjectGantt } from '../components/ui/ProjectGantt';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(value);
@@ -172,6 +173,9 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Project Gantt Chart */}
+      <ProjectGantt projectId={selectedProjectId} />
 
       {/* Project Media & Gallery */}
       <ProjectMedia projectId={selectedProjectId} />

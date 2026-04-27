@@ -252,6 +252,43 @@ app.post('/api/projects/:id/chat', async (req, res) => {
   }
 });
 
+// Tasks (Gantt) API
+app.get('/api/projects/:id/tasks', (req, res) => {
+  try {
+    const tasks = db.prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY start_date ASC').all(req.params.id);
+    res.json(tasks);
+  } catch (error) {
+    console.error('Failed to get tasks:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+app.post('/api/projects/:id/tasks', (req, res) => {
+  const { name, start_date, end_date, progress = 0, status = 'pending' } = req.body;
+  if (!name || !start_date || !end_date) return res.status(400).json({ error: 'Missing required fields' });
+  
+  try {
+    const insert = db.prepare('INSERT INTO tasks (project_id, name, start_date, end_date, progress, status) VALUES (?, ?, ?, ?, ?, ?)');
+    const info = insert.run(req.params.id, name, start_date, end_date, progress, status);
+    res.status(201).json({ id: info.lastInsertRowid, project_id: req.params.id, name, start_date, end_date, progress, status });
+  } catch (error) {
+    console.error('Failed to create task:', error);
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+app.put('/api/tasks/:id', (req, res) => {
+  const { name, start_date, end_date, progress, status } = req.body;
+  try {
+    const update = db.prepare('UPDATE tasks SET name = ?, start_date = ?, end_date = ?, progress = ?, status = ? WHERE id = ?');
+    update.run(name, start_date, end_date, progress, status, req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to update task:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
 // Serve frontend static files in production
 const DIST_DIR = path.join(process.cwd(), 'dist');
 if (fs.existsSync(DIST_DIR)) {

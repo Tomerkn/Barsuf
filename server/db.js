@@ -84,6 +84,17 @@ function initDB() {
       status TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id)
     );
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER,
+      name TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      progress INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      FOREIGN KEY (project_id) REFERENCES projects(id)
+    );
   `);
   
   // Migration to add 'folder' column to existing project_media table
