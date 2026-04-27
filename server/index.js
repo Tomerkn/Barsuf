@@ -181,7 +181,10 @@ app.post('/api/projects/:id/files', upload.single('file'), async (req, res) => {
     res.status(201).json({ success: true, message: 'File uploaded and processed' });
   } catch (error) {
     console.error('Upload error:', error);
-    const errorMessage = error.message || 'Failed to process file with Gemini AI.';
+    if (error.status === 503 || (error.message && error.message.includes('503'))) {
+      return res.status(503).json({ error: 'השרתים של גוגל עמוסים כרגע. אנא נסה להעלות את הקובץ שוב בעוד כמה דקות.' });
+    }
+    const errorMessage = error.message || 'שגיאה בעיבוד הקובץ מול ה-AI.';
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -241,7 +244,10 @@ app.post('/api/projects/:id/chat', async (req, res) => {
     res.json({ answer });
   } catch (error) {
     console.error('Chat error:', error);
-    res.status(500).json({ error: 'Failed to get answer from AI engine.' });
+    if (error.status === 503 || (error.message && error.message.includes('503'))) {
+      return res.status(503).json({ error: 'ברבור חווה עומס זמני בשרתי גוגל כרגע. קח נשימה, ספור עד עשר, ונסה לשאול שוב! 🦢' });
+    }
+    res.status(500).json({ error: 'התגלתה שגיאה בתקשורת עם מנוע הבינה. אנא נסה שוב מאוחר יותר.' });
   }
 });
 

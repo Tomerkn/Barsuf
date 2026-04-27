@@ -130,13 +130,15 @@ export function ProjectChat({ projectId }) {
         body: JSON.stringify({ question: userMessage }),
       });
       
-      if (!response.ok) throw new Error('Chat request failed');
-      
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Chat request failed');
+      }
+      
       setMessages(prev => [...prev, { id: Date.now(), type: 'bot', text: data.answer }]);
     } catch (error) {
       console.error('Error in chat:', error);
-      setMessages(prev => [...prev, { id: Date.now(), type: 'error', text: 'מצטער, חלה שגיאה בתקשורת עם מנוע ה-AI של גוגל (Gemini).' }]);
+      setMessages(prev => [...prev, { id: Date.now(), type: 'error', text: error.message || 'מצטער, חלה שגיאה בתקשורת עם מנוע ה-AI של גוגל (Gemini).' }]);
     } finally {
       setLoading(false);
     }
