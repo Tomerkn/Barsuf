@@ -1,7 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { ProjectMedia } from '../components/ui/ProjectMedia';
-import { AIFloatingWidget } from '../components/ui/AIFloatingWidget';
 
 export function ProjectMediaPage() {
   const { projectId } = useParams();
@@ -13,8 +12,6 @@ export function ProjectMediaPage() {
         <p className="text-text-secondary text-sm">ניהול קבצים ותמונות של הפרויקט</p>
       </div>
       <ProjectMedia projectId={projectId} />
-      {/* Floating AI Widget on the media page as well for context queries */}
-      <AIFloatingWidget projectId={projectId} />
     </div>
   );
 }

@@ -16,8 +16,8 @@ import { clsx } from 'clsx';
 import { X } from 'lucide-react';
 
 const globalNavItems = [
-  { name: 'כל הפרויקטים', path: '/', icon: Briefcase },
-  { name: 'דאשבורד ארגוני', path: '/overview', icon: LayoutDashboard },
+  { name: 'פרויקטים', path: '/', icon: Briefcase },
+  { name: 'דאשבורד מנהל', path: '/overview', icon: LayoutDashboard },
 ];
 
 const getProjectNavItems = (projectId) => [
@@ -69,7 +69,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors"
             >
               <Briefcase className="w-4 h-4" />
-              חזרה לכל הפרויקטים
+              חזרה לפרויקטים
             </NavLink>
           </div>
         )}
