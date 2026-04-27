@@ -7,7 +7,7 @@ const profiles = [
     name: 'שמעון אזולאי',
     role: 'מנכ״ל',
     icon: <ShieldCheck className="w-8 h-8 text-brand" />,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Shimon&backgroundColor=b6e3f4',
+    avatar: '/shimon.png',
     bg: 'bg-blue-50'
   },
   {
