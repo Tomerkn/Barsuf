@@ -15,7 +15,7 @@ const profiles = [
     name: 'בר אזולאי',
     role: 'מפתחת מספר 1',
     icon: <Code className="w-8 h-8 text-brand" />,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bar&backgroundColor=ffdfbf',
+    avatar: '/bar.png',
     bg: 'bg-orange-50'
   },
   {
@@ -23,7 +23,7 @@ const profiles = [
     name: 'תומר קנובלר',
     role: 'מפתח מספר 2',
     icon: <Code className="w-8 h-8 text-brand" />,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tomer&backgroundColor=d1d4f9',
+    avatar: '/tomer.png',
     bg: 'bg-indigo-50'
   },
   {
@@ -38,8 +38,18 @@ const profiles = [
 
 export function ProfileSelection({ onSelect }) {
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6" dir="rtl">
-      <div className="max-w-4xl w-full text-center mb-12">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden" dir="rtl">
+      {/* Background Infographic */}
+      <div 
+        className="absolute inset-0 opacity-10 pointer-events-none grayscale hover:grayscale-0 transition-all duration-1000"
+        style={{ 
+          backgroundImage: 'url(/construction_bg.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      />
+      
+      <div className="max-w-4xl w-full text-center mb-12 relative z-10">
         <img 
           src="https://barsuf.co.il/wp-content/uploads/2019/07/logo-barsuf.png" 
           alt="Barsuf Logo" 
@@ -77,7 +87,7 @@ export function ProfileSelection({ onSelect }) {
         ))}
       </div>
 
-      <div className="mt-16 text-text-muted text-sm flex items-center gap-2">
+      <div className="mt-16 text-text-muted text-sm flex items-center gap-2 relative z-10 bg-surface/80 backdrop-blur-sm px-4 py-2 rounded-full border border-border">
         <User className="w-4 h-4" />
         <span>מערכת ניהול פרויקטים חכמה | Barsuf 2024</span>
       </div>
