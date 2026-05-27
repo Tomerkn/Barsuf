@@ -470,11 +470,11 @@ export default function Tenders() {
                           <div 
                             className="bg-[var(--color-brand)] h-full transition-all duration-700 ease-in-out" 
                             style={{ 
-                              width: selectedTender.status === 'מעלה קובץ לשרתי ה-AI...' ? '15%' :
-                                     selectedTender.status === 'ממתין לעיבוד המסמך...' ? '30%' :
-                                     selectedTender.status === 'מנתח מכרז...' ? '60%' :
-                                     selectedTender.status === 'ניתוח הושלם' ? '100%' :
-                                     '10%'
+                              width: selectedTender.status?.includes('קורא') ? '25%' :
+                                     selectedTender.status?.includes('שלב 1') ? '55%' :
+                                     selectedTender.status?.includes('הושלם') || selectedTender.status?.includes('נותח') ? '100%' :
+                                     selectedTender.status === 'מעלה...' ? '10%' :
+                                     '40%'
                             }}
                           />
                         </div>
@@ -574,12 +574,22 @@ export default function Tenders() {
             </div>
           ) : (
             // מסך ריק שמופיע כשעדיין לא נבחר מכרז מהרשימה
-            <div className="bg-surface border border-border rounded-2xl shadow-sm h-full flex flex-col items-center justify-center p-12 text-center text-text-muted">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-border">
-                <FileSearch className="w-10 h-10 text-slate-300" />
+            <div className="bg-gradient-to-br from-white/90 to-slate-50/50 backdrop-blur-md border border-slate-200/80 rounded-3xl shadow-lg h-full flex flex-col items-center justify-center p-8 text-center">
+              <div className="max-w-md w-full bg-white/70 border border-dashed border-slate-300 rounded-3xl p-10 flex flex-col items-center gap-6 shadow-sm hover:border-[var(--color-brand)] hover:bg-white/90 transition-all duration-300">
+                <div className="w-16 h-16 bg-blue-50 text-[var(--color-brand)] rounded-2xl flex items-center justify-center shadow-inner">
+                  <FileSearch className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">בחר מכרז או העלה אחד חדש</h3>
+                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">העלה קובץ PDF של המכרז וברבור ינתח את תנאי הסף, לוחות הזמנים, יבנה אומדן ויחשב מחיר מטרה בתוך שניות.</p>
+                </div>
+                
+                <label className="flex items-center gap-2 px-5 py-2.5 bg-[var(--color-brand)] text-white rounded-xl hover:bg-[var(--color-brand-dark)] transition-all cursor-pointer shadow-md font-bold text-sm">
+                  <Upload className="w-4 h-4" />
+                  <span>בחירת קובץ PDF</span>
+                  <input type="file" accept=".pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                </label>
               </div>
-              <h3 className="text-xl font-bold text-slate-400">בחר מכרז כדי לראות ניתוח</h3>
-              <p className="max-w-xs mx-auto mt-2">העלה קובץ PDF של מכרז חדש או בחר מכרז קיים מהרשימה כדי להתחיל.</p>
             </div>
           )}
         </div>

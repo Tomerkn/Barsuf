@@ -383,6 +383,32 @@ app.post('/api/budgets', (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
+app.put('/api/tenders/:id', (req, res) => {
+  const { id } = req.params;
+  const { boq_json, analysis, proposal, status } = req.body;
+  const tid = Number(id);
+
+  try {
+    const tender = db.prepare('SELECT * FROM tenders WHERE id = ?').get(tid);
+    if (!tender) return res.status(404).json({ error: 'Tender not found' });
+
+    db.prepare(`
+      UPDATE tenders 
+      SET 
+        boq_json = COALESCE(?, boq_json),
+        analysis = COALESCE(?, analysis),
+        proposal = COALESCE(?, proposal),
+        status = COALESCE(?, status)
+      WHERE id = ?
+    `).run(boq_json, analysis, proposal, status, tid);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to update tender:', err);
+    res.status(500).json({ error: 'Failed to update tender', details: err.message });
+  }
+});
+
 app.put('/api/:resourceType/:id', (req, res) => {
   // Generic fallback for PUT (simplified for safety, normally explicitly defined)
   res.json({ success: true, warning: 'Generic update placeholder' });

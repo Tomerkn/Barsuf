@@ -33,12 +33,11 @@ export function TargetPriceCalculator({ tenderId, initialBoqJson }) {
   const saveBoq = async () => {
     setSaving(true);
     try {
-      // In a real app we'd have a dedicated API route to save the updated BOQ
-      // Here we just mock the save delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await api.updateResource('tenders', tenderId, { boq_json: JSON.stringify(boq) });
       alert('מחיר המטרה עודכן בהצלחה!');
     } catch (error) {
-      alert('שגיאה בשמירה');
+      console.error("Failed to save BoQ:", error);
+      alert('שגיאה בשמירת מחיר המטרה: ' + error.message);
     } finally {
       setSaving(false);
     }
