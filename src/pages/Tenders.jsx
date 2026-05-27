@@ -153,7 +153,7 @@ export default function Tenders() {
         const data = await api.getTenders();
         setTenders(data);
         setSelectedTender(prev => prev ? data.find(t => t.id === prev.id) || prev : null);
-      }, 3000);
+      }, 1000);
       return () => clearInterval(interval);
     }
   }, [tenders]);
@@ -182,8 +182,13 @@ export default function Tenders() {
     setUploading(true); // מראים למשתמש שאנחנו עובדים
     setNewProjectLink(null); // מאפסים קישור ישן
     try {
-      await api.createTender(file); // שולחים את הקובץ לשרת
-      await fetchTenders(); // מרעננים את הרשימה כדי לראות את המכרז החדש
+      const res = await api.createTender(file); // שולחים את הקובץ לשרת
+      const data = await api.getTenders();
+      setTenders(data);
+      if (res && res.id) {
+        const newT = data.find(t => t.id === res.id);
+        if (newT) setSelectedTender(newT);
+      }
     } catch (error) {
       alert('משהו השתבש בהעלאה, נסה שוב.');
     } finally {

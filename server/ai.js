@@ -7,23 +7,29 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 
+const pdfCache = new Map();
 const parsePDFText = async (filePath) => {
+  if (pdfCache.has(filePath)) {
+    return pdfCache.get(filePath);
+  }
   const buffer = fs.readFileSync(filePath);
+  let text = "";
   if (pdfParse && pdfParse.PDFParse) {
     const uint8 = new Uint8Array(buffer);
     const parser = new pdfParse.PDFParse(uint8);
     const result = await parser.getText();
-    return result.text || "";
-  }
-  if (typeof pdfParse === 'function') {
+    text = result.text || "";
+  } else if (typeof pdfParse === 'function') {
     const result = await pdfParse(buffer);
-    return result.text || "";
-  }
-  if (pdfParse && typeof pdfParse.default === 'function') {
+    text = result.text || "";
+  } else if (pdfParse && typeof pdfParse.default === 'function') {
     const result = await pdfParse.default(buffer);
-    return result.text || "";
+    text = result.text || "";
+  } else {
+    throw new Error("Unable to determine PDF parsing library interface");
   }
-  throw new Error("Unable to determine PDF parsing library interface");
+  pdfCache.set(filePath, text);
+  return text;
 };
 
 // משתמשים ב-/tmp לכתיבה בענן
@@ -46,8 +52,8 @@ const getGeminiClients = () => {
   return { genAI: new GoogleGenerativeAI(apiKey), fileManager: new GoogleAIFileManager(apiKey) };
 };
 
-const GEMINI_FLASH_CHAIN = ['gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-pro'];
-const GEMINI_PRO_CHAIN = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-3.5-flash'];
+const GEMINI_FLASH_CHAIN = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash'];
+const GEMINI_PRO_CHAIN = ['gemini-2.5-pro', 'gemini-3.5-flash', 'gemini-2.5-flash'];
 
 const generateContentWithFallback = async (genAI, modelChain, promptOrContent, timeoutMs = 45000) => {
   let lastError = null;
@@ -75,10 +81,43 @@ const generateContentWithFallback = async (genAI, modelChain, promptOrContent, t
 async function getEmbeddings(text) {
   try {
     const { genAI } = getGeminiClients();
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+    const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
     const result = await model.embedContent(text);
     return result.embedding.values;
-  } catch (e) { return null; }
+  } catch (e) {
+    console.error("Embedding generation failed:", e.message);
+    return null;
+  }
+}
+
+async function getEmbeddingsBatch(texts) {
+  try {
+    const { genAI } = getGeminiClients();
+    const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
+    
+    const batchSize = 30;
+    const results = [];
+    
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batchTexts = texts.slice(i, i + batchSize);
+      console.log(`Sending batch of ${batchTexts.length} chunks to gemini-embedding-2...`);
+      const response = await model.batchEmbedContents({
+        requests: batchTexts.map(text => ({
+          model: "models/gemini-embedding-2",
+          content: { parts: [{ text }] }
+        }))
+      });
+      if (response && response.embeddings) {
+        results.push(...response.embeddings.map(e => e.values));
+      } else {
+        results.push(...Array(batchTexts.length).fill(null));
+      }
+    }
+    return results;
+  } catch (e) {
+    console.error("Batch embedding failed:", e.message);
+    return Array(texts.length).fill(null);
+  }
 }
 
 export const vectorStore = {
@@ -102,37 +141,23 @@ export const vectorStore = {
 export const ingestDocument = async (projectId, filePath, mimeType = "application/pdf") => {
   console.log(`🔍 Ingesting document: ${filePath} for project ${projectId}`);
   try {
-    const { fileManager } = getGeminiClients();
-    // העלאה למנהל הקבצים (לצרכי חיפוש עתידיים ב-Gemini)
-    try {
-      await fileManager.uploadFile(filePath, { mimeType, displayName: `Doc ${path.basename(filePath)}` });
-    } catch (e) { console.warn('GCS Upload in ingest failed, continuing with local embedding:', e.message); }
-
+    // Removed redundant fileManager GCS upload to speed up execution
     if (mimeType === 'application/pdf') {
       const pdfText = await parsePDFText(filePath);
       const chunks = pdfText.match(/[\s\S]{1,1500}/g) || []; // צ'אנקים
-      console.log(`📄 PDF parsed into ${chunks.length} chunks. Starting parallel embedding...`);
+      console.log(`📄 PDF parsed into ${chunks.length} chunks. Starting batch embedding...`);
       
-      // איסוף כל ה-embeddings במקביל למהירות שיא של 1-2 שניות במקום חצי דקה!
-      const embeddingPromises = chunks.map(async (chunk) => {
-        if (chunk.trim().length < 50) return null;
-        try {
-          const embedding = await getEmbeddings(chunk);
-          return { chunk, embedding };
-        } catch (err) {
-          console.error(`Error embedding chunk: ${err.message}`);
-          return null;
-        }
-      });
-      
-      const results = await Promise.all(embeddingPromises);
+      const validChunks = chunks.filter(c => c.trim().length >= 50);
+      const embeddings = await getEmbeddingsBatch(validChunks);
       
       let addedCount = 0;
-      for (const res of results) {
-        if (res && res.embedding) {
+      for (let i = 0; i < validChunks.length; i++) {
+        const chunk = validChunks[i];
+        const embedding = embeddings[i];
+        if (embedding) {
           vectorStore.data.push({ 
-            text: res.chunk, 
-            embedding: res.embedding, 
+            text: chunk, 
+            embedding: embedding, 
             metadata: { projectId, date: new Date().toISOString() } 
           });
           addedCount++;
