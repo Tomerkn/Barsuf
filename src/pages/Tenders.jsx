@@ -275,13 +275,15 @@ export default function Tenders() {
             <h1 className="text-2xl font-bold text-text-primary">ניהול מכרזים חכם</h1>
             <p className="text-text-secondary text-sm">ניתוח מכרזים והפקת הצעות מחיר מבוססות בינה מלאכותית</p>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 px-4 py-2.5 bg-[var(--color-brand)] text-white rounded-xl hover:bg-[var(--color-brand-dark)] transition-all cursor-pointer shadow-sm">
-              <Upload className="w-4 h-4" />
-              <span className="font-medium text-sm">העלאת מכרז חדש</span>
-              <input type="file" accept=".pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-            </label>
-          </div>
+          {selectedTender && (
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 px-4 py-2.5 bg-[var(--color-brand)] text-white rounded-xl hover:bg-[var(--color-brand-dark)] transition-all cursor-pointer shadow-sm">
+                <Upload className="w-4 h-4" />
+                <span className="font-medium text-sm">העלאת מכרז חדש</span>
+                <input type="file" accept=".pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
