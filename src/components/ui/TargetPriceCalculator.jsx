@@ -30,9 +30,11 @@ export function TargetPriceCalculator({ tenderId, initialBoqJson }) {
 
   const totalTargetPrice = boq.reduce((sum, item) => sum + calculateRowTotal(item), 0);
 
+  // שמירת כתב הכמויות המעודכן בשרת (מסד הנתונים SQLite)
   const saveBoq = async () => {
     setSaving(true);
     try {
+      // שליחת בקשת עדכון למכרז עם ה-JSON החדש
       await api.updateResource('tenders', tenderId, { boq_json: JSON.stringify(boq) });
       alert('מחיר המטרה עודכן בהצלחה!');
     } catch (error) {

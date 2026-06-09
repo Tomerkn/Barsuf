@@ -383,6 +383,7 @@ app.post('/api/budgets', (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
+// עדכון פרטי מכרז קיים בבסיס הנתונים (למשל שמירת כתב כמויות מעודכן מהמחשבון)
 app.put('/api/tenders/:id', (req, res) => {
   const { id } = req.params;
   const { boq_json, analysis, proposal, status } = req.body;
@@ -390,7 +391,7 @@ app.put('/api/tenders/:id', (req, res) => {
 
   try {
     const tender = db.prepare('SELECT * FROM tenders WHERE id = ?').get(tid);
-    if (!tender) return res.status(404).json({ error: 'Tender not found' });
+    if (!tender) return res.status(404).json({ error: 'מכרז לא נמצא' });
 
     db.prepare(`
       UPDATE tenders 
@@ -405,7 +406,7 @@ app.put('/api/tenders/:id', (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Failed to update tender:', err);
-    res.status(500).json({ error: 'Failed to update tender', details: err.message });
+    res.status(500).json({ error: 'נכשל בעדכון המכרז', details: err.message });
   }
 });
 

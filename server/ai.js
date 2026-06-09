@@ -7,8 +7,10 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 
+// זיכרון מטמון למניעת קריאה ופענוח כפול של קובצי PDF
 const pdfCache = new Map();
 const parsePDFText = async (filePath) => {
+  // אם הקובץ כבר פוענח בעבר, נחזיר את הטקסט ישירות מהזיכרון
   if (pdfCache.has(filePath)) {
     return pdfCache.get(filePath);
   }

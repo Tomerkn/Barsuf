@@ -148,6 +148,7 @@ export default function Tenders() {
       t.status !== null
     );
 
+    // מנגנון רענון מהיר (כל 1 שניה) בעת ניתוח/טעינה פעילים לעדכון הסטטוס ומד ההתקדמות
     if (hasInProgress) {
       const interval = setInterval(async () => {
         const data = await api.getTenders();
@@ -185,6 +186,7 @@ export default function Tenders() {
       const res = await api.createTender(file); // שולחים את הקובץ לשרת
       const data = await api.getTenders();
       setTenders(data);
+      // בחירה אוטומטית במכרז החדש כדי להציג את התקדמות הניתוח מייד ללא צורך בלחיצה נוספת
       if (res && res.id) {
         const newT = data.find(t => t.id === res.id);
         if (newT) setSelectedTender(newT);
@@ -275,6 +277,7 @@ export default function Tenders() {
             <h1 className="text-2xl font-bold text-text-primary">ניהול מכרזים חכם</h1>
             <p className="text-text-secondary text-sm">ניתוח מכרזים והפקת הצעות מחיר מבוססות בינה מלאכותית</p>
           </div>
+          {/* כפתור ההעלאה בראש הדף יוצג רק כאשר מכרז כלשהו נבחר, למניעת כפילות מול תיבת ההעלאה המרכזית */}
           {selectedTender && (
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 px-4 py-2.5 bg-[var(--color-brand)] text-white rounded-xl hover:bg-[var(--color-brand-dark)] transition-all cursor-pointer shadow-sm">
@@ -469,6 +472,7 @@ export default function Tenders() {
                           {selectedTender.status || "מעבד נתונים..."}
                         </div>
                         <div className="w-full max-w-xs bg-blue-100 h-1.5 rounded-full overflow-hidden">
+                          {/* חישוב דינמי של רוחב פס ההתקדמות בהתאם לסטטוסים האמיתיים שמחזיר השרת */}
                           <div 
                             className="bg-[var(--color-brand)] h-full transition-all duration-700 ease-in-out" 
                             style={{ 
