@@ -8,6 +8,7 @@ import { Storage } from '@google-cloud/storage';
 import db from './db.js';
 import './seed.js';
 import { ingestDocument, askQuestion, analyzeReceipt, analyzeTender, generateProposal, vectorStore, VECTOR_DB_PATH } from './ai.js';
+import { uploadFileToCloud, ensureFileExistsLocally } from './storage.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -45,7 +46,12 @@ app.use(express.json());
 // הגשת קבצי האתר (Frontend)
 const distPath = path.join(root, 'dist');
 app.use(express.static(distPath));
-// הגשת הקבצים שהועלו כקבצים סטטיים
+// הגשת הקבצים שהועלו כקבצים סטטיים עם הורדה על פי דרישה מהענן
+app.use('/uploads/:filename', async (req, res, next) => {
+  const localPath = path.join(UPLOADS_DIR, req.params.filename);
+  await ensureFileExistsLocally(localPath);
+  next();
+});
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // API
@@ -139,11 +145,22 @@ app.get('/api/projects/:id/media', (req, res) => {
   res.json(filesWithUrl);
 });
 
-app.post('/api/projects/:id/files', upload.single('file'), (req, res) => {
+app.post('/api/projects/:id/files', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const stmt = db.prepare('INSERT INTO files (project_id, filename, original_name, upload_date) VALUES (?, ?, ?, ?)');
-  const result = stmt.run(req.params.id, req.file.filename, req.file.originalname, new Date().toISOString());
-  res.json({ id: result.lastInsertRowid, url: `/uploads/${req.file.filename}`, filename: req.file.filename, original_name: req.file.originalname });
+  
+  try {
+    // העלאת הקובץ לגיבוי בענן על מנת שלא יאבד במעבר בין שרתים
+    await uploadFileToCloud(req.file.path, req.file.filename).catch(e => 
+      console.error(`☁️ GCS upload failed for project file:`, e)
+    );
+
+    const stmt = db.prepare('INSERT INTO files (project_id, filename, original_name, upload_date) VALUES (?, ?, ?, ?)');
+    const result = stmt.run(req.params.id, req.file.filename, req.file.originalname, new Date().toISOString());
+    res.json({ id: result.lastInsertRowid, url: `/uploads/${req.file.filename}`, filename: req.file.filename, original_name: req.file.originalname });
+  } catch (err) {
+    console.error('Database error during file upload:', err);
+    res.status(500).json({ error: 'Failed to save file entry', details: err.message });
+  }
 });
 
 app.get('/api/tenders', (req, res) => {
@@ -160,30 +177,36 @@ app.post('/api/tenders', upload.single('file'), async (req, res) => {
     const info = insert.run(req.file.originalname, req.file.filename, new Date().toISOString(), 'מעלה...');
     const tenderId = info.lastInsertRowid;
     
-    // התחלת אינדוקס מסמך המכרז מיד בבסיס הנתונים הווקטורי במקביל ובצורה מהירה!
-    ingestDocument(`tender-${tenderId}`, req.file.path).catch(e => 
-      console.error(`Background RAG ingestion failed for tender-${tenderId}:`, e)
+    // העלאת קובץ המכרז המקורי לגיבוי בענן מייד עם קבלתו
+    await uploadFileToCloud(req.file.path, req.file.filename).catch(e => 
+      console.error(`☁️ GCS upload failed for tender PDF:`, e)
     );
 
-    // הפעלה אסינכרונית של הניתוח הדו-שלבי
+    // ביצוע אינדוקס RAG באופן סינכרוני כדי למנוע קריסה/האטה ב-Cloud Run עקב CPU throttling
+    console.log(`🤖 Starting RAG ingestion synchronously for tender-${tenderId}...`);
+    await ingestDocument(`tender-${tenderId}`, req.file.path).catch(e => 
+      console.error(`RAG ingestion failed for tender-${tenderId}:`, e)
+    );
+
+    // מנגנון הניתוח הדו-שלבי מורץ באופן סינכרוני מלא בשרת על מנת להבטיח הקצאת CPU תקינה בענן
     const onPhaseOneComplete = (quickAnalysis) => {
-      // שמירת ניתוח ראשוני מהיר - המשתמש כבר רואה תוצאה!
       db.prepare('UPDATE tenders SET analysis = ?, status = ? WHERE id = ?')
         .run(quickAnalysis, 'נותח (ראשוני)', tenderId);
       console.log(`⚡ Phase 1 quick analysis saved for tender ${tenderId}`);
     };
 
-    analyzeTender(req.file.path, tenderId, onPhaseOneComplete).then(({ analysis, boq_json }) => {
-      // שמירת הניתוח המלא + כתב כמויות ראשוני
+    console.log(`🤖 Starting smart tender analysis synchronously for tender-${tenderId}...`);
+    try {
+      const { analysis, boq_json } = await analyzeTender(req.file.path, tenderId, onPhaseOneComplete);
       db.prepare('UPDATE tenders SET analysis = ?, boq_json = ?, status = ? WHERE id = ?')
         .run(analysis, boq_json, 'נותח', tenderId);
       console.log(`✅ Phase 2 deep analysis + BoQ saved for tender ${tenderId}, boq: ${boq_json ? 'yes' : 'none'}`);
-    }).catch(err => {
+    } catch (err) {
       console.error('AI Analysis failed for tender:', tenderId, err);
-      // שמירת השגיאה המדויקת בבסיס הנתונים לצרכי דיבאג בענן
+      // שמירת השגיאה בבסיס הנתונים לדיבאג בענן
       const errorMsg = `שגיאה בניתוח המכרז: ${err.message}\n${err.stack || ''}`;
       db.prepare('UPDATE tenders SET status = ?, analysis = ? WHERE id = ?').run('שגיאה', errorMsg, tenderId);
-    });
+    }
 
     res.status(201).json({ id: tenderId });
   } catch (err) {
@@ -194,9 +217,17 @@ app.post('/api/tenders', upload.single('file'), async (req, res) => {
 
 app.post('/api/tenders/:id/proposal', async (req, res) => {
   const tender = db.prepare('SELECT * FROM tenders WHERE id = ?').get(req.params.id);
-  generateProposal(path.join(UPLOADS_DIR, tender.filename), req.params.id).then(({ proposal, boq_json }) => {
+  if (!tender) return res.status(404).json({ error: 'Tender not found' });
+
+  console.log(`🤖 Starting proposal generation synchronously for tender-${req.params.id}...`);
+  try {
+    const { proposal, boq_json } = await generateProposal(path.join(UPLOADS_DIR, tender.filename), req.params.id);
     db.prepare('UPDATE tenders SET proposal = ?, boq_json = ?, status = ? WHERE id = ?').run(proposal, boq_json, 'מוכן', req.params.id);
-  }).catch(e => db.prepare('UPDATE tenders SET status = ? WHERE id = ?').run('שגיאה', req.params.id));
+    console.log(`✅ Proposal generation complete for tender-${req.params.id}`);
+  } catch (e) {
+    console.error(`❌ Proposal generation failed for tender-${req.params.id}:`, e);
+    db.prepare('UPDATE tenders SET status = ? WHERE id = ?').run('שגיאה', req.params.id);
+  }
   res.json({ success: true });
 });
 

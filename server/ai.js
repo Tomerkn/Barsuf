@@ -3,6 +3,7 @@ import path from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
 import db from './db.js';
+import { ensureFileExistsLocally } from './storage.js';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
@@ -14,6 +15,10 @@ const parsePDFText = async (filePath) => {
   if (pdfCache.has(filePath)) {
     return pdfCache.get(filePath);
   }
+  
+  // מוודאים שהקובץ אכן קיים בדיסק המקומי (אם לא, מורידים מהענן על פי דרישה)
+  await ensureFileExistsLocally(filePath);
+
   const buffer = fs.readFileSync(filePath);
   let text = "";
   if (pdfParse && pdfParse.PDFParse) {
@@ -54,7 +59,7 @@ const getGeminiClients = () => {
   return { genAI: new GoogleGenerativeAI(apiKey), fileManager: new GoogleAIFileManager(apiKey) };
 };
 
-const GEMINI_FLASH_CHAIN = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash'];
+const GEMINI_FLASH_CHAIN = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash'];
 const GEMINI_PRO_CHAIN = ['gemini-2.5-pro', 'gemini-3.5-flash', 'gemini-2.5-flash'];
 
 const generateContentWithFallback = async (genAI, modelChain, promptOrContent, timeoutMs = 45000) => {
