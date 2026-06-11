@@ -362,6 +362,10 @@ app.post('/api/analyze-tender', (req, res) => res.redirect(307, '/api/tenders'))
 app.post('/api/global-knowledge', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).send('No file uploaded');
   try {
+    // העלאת הקובץ לגיבוי בענן על מנת שלא יאבד במעבר בין שרתים
+    await uploadFileToCloud(req.file.path, req.file.filename).catch(e => 
+      console.error(`☁️ GCS upload failed for global knowledge:`, e)
+    );
     await ingestDocument('global', req.file.path);
     res.json({ success: true });
   } catch (e) {
