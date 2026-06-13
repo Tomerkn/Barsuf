@@ -4,7 +4,7 @@ export const api = { // יצירת השליח שמדבר עם השרת
   baseUrl: API_BASE_URL, // הכתובת הבסיסית של השרת
   getProjects: async () => { // בקשה לקבלת כל הפרויקטים
     try {
-      const response = await fetch(`${API_BASE_URL}/projects`); // מבקשים מהשרת את הרשימה
+      const response = await fetch(`${API_BASE_URL}/projects?t=${Date.now()}`); // מבקשים מהשרת את הרשימה ומבטלים מטמון
       if (!response.ok) return []; // אם יש תקלה, מחזירים מערך ריק כדי שלא יקרוס
       const data = await response.json();
       return Array.isArray(data) ? data : []; // מוודאים שזה באמת מערך
@@ -152,7 +152,7 @@ export const api = { // יצירת השליח שמדבר עם השרת
   
   // --- ניהול מכרזים מלא ---
   getTenders: async () => {
-    const response = await fetch(`${API_BASE_URL}/tenders`);
+    const response = await fetch(`${API_BASE_URL}/tenders?t=${Date.now()}`);
     if (!response.ok) throw new Error('נכשל בטעינת מכרזים');
     return response.json();
   },
