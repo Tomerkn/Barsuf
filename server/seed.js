@@ -372,15 +372,85 @@ export async function reseedDatabase(force = false) {
     {"section": "08", "item": "גמרים, מחיצות מלתחות וכלים סניטריים", "quantity": 1, "unit": "גלובלי", "unitPrice": 550000}
   ];
 
-  insertTender.run(
+  const proposal2 = `### הצעת מחיר עבור: מכרז אולם ספורט מרום - נתניה
+  
+לכבוד: עיריית נתניה - ועדת המכרזים
+מאת: בארסוף הנדסה ובנייה בע"מ
+  
+אנו שמחים להגיש את הצעתנו המקצועית והכספית להקמת אולם הספורט הרב-תכליתי "מרום" בנתניה.
+  
+**1. הצעה כספית כוללת**
+סך כל הצעתנו לביצוע הפרויקט על פי כתב הכמויות המצורף עומדת על: **6,397,000 ₪** (לא כולל מע"מ).
+  
+**2. צוות מפתח וניהול הפרויקט**
+* מנהל פרויקט מוצע: אינג' רון ערד, בעל 12 שנות ניסיון בהנדסה אזרחית ובבניית אולמי ספורט.
+* קבלן משנה לקונסטרוקציות פלדה: חברת "מתכת הצפון בע\"מ" - מומחים בהנפת גשרים ומפתחי ענק.
+  
+**3. מתודולוגיית ביצוע**
+* שלב א': ביסוס עמוק, יסודות ועמודי בטון (חודשים 1-4)
+* שלב ב': ייצור, הנפה והרכבת קונסטרוקציית הפלדה של הגג (חודשים 5-8)
+* שלב ג': קירוי, איטום, חיפוי ופרקט ספורט FIBA (חודשים 9-12)
+* שלב ד': מחיצות גבס, מלתחות, גמרים ומסירה (חודשים 13-14)`;
+
+  const t2 = insertTender.run(
     "מכרז אולם ספורט מרום - נתניה.pdf",
     "1718229000000-tender_sports_hall_netanya.pdf",
     "2026-06-11T16:00:00.000Z",
-    "נותח",
+    "הועבר לפרויקט",
     analysis2,
-    null, // ללא הצעה כברירת מחדל כדי שיוכל ללחוץ על הכפתור "הפק הצעה" במצגת
+    proposal2,
     JSON.stringify(boq2)
   );
+  const tenderId2 = t2.lastInsertRowid;
+
+  // יצירת פרויקט 6 המקושר למכרז אולם הספורט מרום נתניה
+  const insertProjectWithTender = db.prepare("INSERT INTO projects (name, location, end_date, status, tender_id, analysis, proposal, boq_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const p6 = insertProjectWithTender.run(
+    "אולם ספורט עירוני מרום נתניה",
+    "רחוב המורן 4, נתניה",
+    "2026-12-31",
+    "תקין",
+    tenderId2,
+    analysis2,
+    proposal2,
+    JSON.stringify(boq2)
+  );
+  const projId6 = p6.lastInsertRowid;
+
+  // הוספת קובץ המכרז המקורי לפרויקט 6
+  db.prepare('INSERT INTO files (project_id, filename, original_name, upload_date) VALUES (?, ?, ?, ?)').run(
+    projId6,
+    "1718229000000-tender_sports_hall_netanya.pdf",
+    "מכרז אולם ספורט מרום - נתניה.pdf",
+    "2026-06-11T16:00:00.000Z"
+  );
+
+  // סעיפי תקציב עבור פרויקט 6 - אולם ספורט מרום נתניה
+  const b6_1 = insertBudget.run(projId6, "01 - הכנת אתר וחפירה", 76500).lastInsertRowid;
+  const b6_2 = insertBudget.run(projId6, "02 - יסודות ועמודי בטון", 728000).lastInsertRowid;
+  const b6_3 = insertBudget.run(projId6, "03 - קונסטרוקציית פלדה לגג", 812500).lastInsertRowid;
+  const b6_4 = insertBudget.run(projId6, "04 - קירוי ואיטום גג", 216000).lastInsertRowid;
+  const b6_5 = insertBudget.run(projId6, "05 - פרקט ספורט מייפל", 360000).lastInsertRowid;
+  const b6_6 = insertBudget.run(projId6, "06 - מיזוג אוויר ומפוחים", 680000).lastInsertRowid;
+  const b6_7 = insertBudget.run(projId6, "07 - חשמל ותאורת ספורט", 750000).lastInsertRowid;
+  const b6_8 = insertBudget.run(projId6, "08 - גמרים ומלתחות", 550000).lastInsertRowid;
+
+  // הוצאות עבור פרויקט 6
+  insertExpense.run(projId6, b6_1, contId1, 70000, "2026-05-15", "עבודות חפירה ופינוי עפר ראשוני");
+  insertExpense.run(projId6, b6_2, contId3, 350000, "2026-06-01", "יציקת כלונסאות ויסודות האולם");
+
+  // הכנסות עבור פרויקט 6
+  insertIncome.run(projId6, 1200000, "2026-05-10", "מקדמה ראשונית מעיריית נתניה");
+
+  // יומן עבודה עבור פרויקט 6
+  const insertDailyLog = db.prepare("INSERT INTO daily_logs (project_id, date, manager_name, weather, workers_count, notes, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  insertDailyLog.run(projId6, "2026-06-12", "משה לוי", "בהיר וחם", 16, "הושלמו יציקות יסודות ועמודי בטון. בוצעו בדיקות מעבדה לבטון. קבלן קונסטרוקציות הפלדה הגיע לתיאום מדידות לקראת הנפה.", "");
+
+  // משימות גאנט עבור פרויקט 6
+  insertTask.run(projId6, "עבודות עפר ויסודות בטון", "2026-05-01", "2026-06-15", 90);
+  insertTask.run(projId6, "ייצור והנפת קונסטרוקציית פלדה לגג", "2026-06-16", "2026-08-30", 0);
+  insertTask.run(projId6, "קירוי גג, מערכות ופרקט", "2026-09-01", "2026-11-30", 0);
+  insertTask.run(projId6, "מלתחות, גמרים ומסירה", "2026-12-01", "2026-12-31", 0);
 
   console.log('Seeding complete.');
 
