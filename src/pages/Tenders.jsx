@@ -237,8 +237,15 @@ export default function Tenders() {
       const interval = setInterval(async () => {
         try {
           const data = await api.getTenders();
-          setTenders(data);
-          setSelectedTender(prev => prev ? data.find(t => t.id === prev.id) || prev : null);
+          setTenders(prev => {
+            const tempTenders = prev.filter(t => t.id < 0);
+            return [...tempTenders, ...data.filter(t => !tempTenders.some(temp => temp.name === t.name))];
+          });
+          setSelectedTender(prev => {
+            if (!prev) return null;
+            if (prev.id < 0) return prev; // שמור על בחירת המכרז הזמני שעדיין עולה
+            return data.find(t => t.id === prev.id) || prev;
+          });
         } catch (err) {
           console.error("Polling tenders failed:", err);
         }
@@ -255,7 +262,10 @@ export default function Tenders() {
   const fetchTenders = async () => {
     try {
       const data = await api.getTenders();
-      setTenders(data);
+      setTenders(prev => {
+        const tempTenders = prev.filter(t => t.id < 0);
+        return [...tempTenders, ...data.filter(t => !tempTenders.some(temp => temp.name === t.name))];
+      });
     } catch (error) {
       console.error('אופס, לא הצלחנו להביא את המכרזים:', error);
     } finally {
@@ -270,6 +280,22 @@ export default function Tenders() {
     
     setUploading(true); // מראים למשתמש שאנחנו עובדים
     setNewProjectLink(null); // מאפסים קישור ישן
+    
+    // עדכון אופטימי מיידי ב-UI
+    const tempTender = {
+      id: -Date.now(),
+      name: file.name,
+      upload_date: new Date().toISOString(),
+      status: 'מעלה...',
+      analysis: null,
+      proposal: null,
+      boq_json: null,
+      project_id: null
+    };
+    
+    setTenders(prev => [tempTender, ...prev]);
+    setSelectedTender(tempTender);
+    
     try {
       const res = await api.createTender(file); // שולחים את הקובץ לשרת ומקבלים מזהה מיידי
       const data = await api.getTenders();
@@ -290,6 +316,8 @@ export default function Tenders() {
         });
       }
     } catch (error) {
+      setTenders(prev => prev.filter(t => t.id !== tempTender.id));
+      setSelectedTender(null);
       alert('משהו השתבש בהעלאה, נסה שוב.');
       setUploading(false);
     }
