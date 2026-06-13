@@ -208,6 +208,29 @@ const calculateTargetPrice = (boqJson) => {
   }
 };
 
+const splitProposal = (proposalText) => {
+  if (!proposalText) return { before: null, after: null };
+  const splitRegex = /(?:\n|^)(?:###\s*4\.|4\.\s*פרטי\s*המציע|\*\*4\.)/i;
+  const match = proposalText.match(splitRegex);
+  if (match) {
+    const index = match.index;
+    return {
+      before: proposalText.substring(0, index).trim(),
+      after: proposalText.substring(index).trim()
+    };
+  }
+  const signatureRegex = /(?:\n|^)(?:###\s*חתימה|\*\*חתימה|פרטי\s*המציע|שם\s*המציע\s*:\s*ברסוף)/i;
+  const sigMatch = proposalText.match(signatureRegex);
+  if (sigMatch) {
+    const index = sigMatch.index;
+    return {
+      before: proposalText.substring(0, index).trim(),
+      after: proposalText.substring(index).trim()
+    };
+  }
+  return { before: proposalText, after: null };
+};
+
 export default function Tenders() {
   // --- המשתנים של הדף (הזיכרון המקומי של המסך) ---
   const [tenders, setTenders] = useState([]); // רשימת המכרזים שהעלינו
@@ -756,72 +779,87 @@ export default function Tenders() {
                               </div>
                             </div>
                           )}
-                          <div className="prose prose-sm max-w-none text-right text-text-primary whitespace-pre-wrap leading-relaxed">
-                            {renderCleanContentWithTables(selectedTender.proposal)}
-                          </div>
-                          
-                          {/* כתב כמויות מפורט בטבלה מקצועית */}
-                          {selectedTender.boq_json && (
-                            <div className="mt-8 border-t border-emerald-100 pt-6">
-                              <h4 className="font-bold text-sm text-emerald-800 mb-4 flex items-center gap-2">
-                                <ClipboardList className="w-4.5 h-4.5" />
-                                כתב כמויות מפורט (BOQ) ואומדן עלויות
-                              </h4>
-                              <div className="overflow-x-auto rounded-xl border border-emerald-100 shadow-sm bg-white">
-                                <table className="w-full text-right text-xs border-collapse">
-                                  <thead>
-                                    <tr className="bg-emerald-50/50 text-emerald-800 font-bold border-b border-emerald-100">
-                                      <th className="p-3 w-12 text-center">#</th>
-                                      <th className="p-3 w-28">סעיף</th>
-                                      <th className="p-3">תיאור העבודה / פריט</th>
-                                      <th className="p-3 w-20 text-center">כמות</th>
-                                      <th className="p-3 w-20 text-center">יחידה</th>
-                                      <th className="p-3 w-28 text-left">מחיר יחידה</th>
-                                      <th className="p-3 w-28 text-left">סה"כ (₪)</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-emerald-50 text-slate-700">
-                                    {(() => {
-                                      try {
-                                        const boq = JSON.parse(selectedTender.boq_json);
-                                        if (!Array.isArray(boq)) return null;
-                                        let totalSum = 0;
-                                        return (
-                                          <>
-                                            {boq.map((item, idx) => {
-                                              const qty = Number(item.quantity) || 0;
-                                              const price = Number(item.unitPrice || item.price || 0);
-                                              const lineTotal = qty * price;
-                                              totalSum += lineTotal;
+                          {(() => {
+                            const { before, after } = splitProposal(selectedTender.proposal);
+                            return (
+                              <>
+                                {before && (
+                                  <div className="prose prose-sm max-w-none text-right text-text-primary whitespace-pre-wrap leading-relaxed">
+                                    {renderCleanContentWithTables(before)}
+                                  </div>
+                                )}
+                                
+                                {/* כתב כמויות מפורט בטבלה מקצועית */}
+                                {selectedTender.boq_json && (
+                                  <div className="mt-8 border-t border-emerald-100 pt-6">
+                                    <h4 className="font-bold text-sm text-emerald-800 mb-4 flex items-center gap-2">
+                                      <ClipboardList className="w-4.5 h-4.5" />
+                                      כתב כמויות מפורט (BOQ) ואומדן עלויות
+                                    </h4>
+                                    <div className="overflow-x-auto rounded-xl border border-emerald-100 shadow-sm bg-white">
+                                      <table className="w-full text-right text-xs border-collapse">
+                                        <thead>
+                                          <tr className="bg-emerald-50/50 text-emerald-800 font-bold border-b border-emerald-100">
+                                            <th className="p-3 w-12 text-center">#</th>
+                                            <th className="p-3 w-28">סעיף</th>
+                                            <th className="p-3">תיאור העבודה / פריט</th>
+                                            <th className="p-3 w-20 text-center">כמות</th>
+                                            <th className="p-3 w-20 text-center">יחידה</th>
+                                            <th className="p-3 w-28 text-left">מחיר יחידה</th>
+                                            <th className="p-3 w-28 text-left">סה"כ (₪)</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-emerald-50 text-slate-700">
+                                          {(() => {
+                                            try {
+                                              const boq = JSON.parse(selectedTender.boq_json);
+                                              if (!Array.isArray(boq)) return null;
+                                              let totalSum = 0;
                                               return (
-                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                                  <td className="p-3 text-center text-slate-400 font-medium">{idx + 1}</td>
-                                                  <td className="p-3 font-semibold text-slate-800">{item.section}</td>
-                                                  <td className="p-3 text-slate-600">{item.item || item.description}</td>
-                                                  <td className="p-3 text-center">{qty.toLocaleString('he-IL')}</td>
-                                                  <td className="p-3 text-center">{item.unit || 'יח\''}</td>
-                                                  <td className="p-3 text-left font-mono">{price.toLocaleString('he-IL')} ₪</td>
-                                                  <td className="p-3 text-left font-bold text-slate-800 font-mono">{lineTotal.toLocaleString('he-IL')} ₪</td>
-                                                </tr>
+                                                <>
+                                                  {boq.map((item, idx) => {
+                                                    const qty = Number(item.quantity) || 0;
+                                                    const price = Number(item.unitPrice || item.price || 0);
+                                                    const lineTotal = qty * price;
+                                                    totalSum += lineTotal;
+                                                    return (
+                                                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                                        <td className="p-3 text-center text-slate-400 font-medium">{idx + 1}</td>
+                                                        <td className="p-3 font-semibold text-slate-800">{item.section}</td>
+                                                        <td className="p-3 text-slate-600">{item.item || item.description}</td>
+                                                        <td className="p-3 text-center">{qty.toLocaleString('he-IL')}</td>
+                                                        <td className="p-3 text-center">{item.unit || 'יח\''}</td>
+                                                        <td className="p-3 text-left font-mono">{price.toLocaleString('he-IL')} ₪</td>
+                                                        <td className="p-3 text-left font-bold text-slate-800 font-mono">{lineTotal.toLocaleString('he-IL')} ₪</td>
+                                                      </tr>
+                                                    );
+                                                  })}
+                                                  <tr className="bg-emerald-50/20 font-bold border-t border-emerald-100 text-emerald-900">
+                                                    <td colSpan="6" className="p-3.5 text-right text-sm">סה"כ אומדן הצעת מחיר (לא כולל מע"מ):</td>
+                                                    <td className="p-3.5 text-left text-sm font-extrabold font-mono border-b-2 border-double border-emerald-600">
+                                                      {totalSum.toLocaleString('he-IL')} ₪
+                                                    </td>
+                                                  </tr>
+                                                </>
                                               );
-                                            })}
-                                            <tr className="bg-emerald-50/20 font-bold border-t border-emerald-100 text-emerald-900">
-                                              <td colSpan="6" className="p-3.5 text-right text-sm">סה"כ אומדן הצעת מחיר (לא כולל מע"מ):</td>
-                                              <td className="p-3.5 text-left text-sm font-extrabold font-mono border-b-2 border-double border-emerald-600">
-                                                {totalSum.toLocaleString('he-IL')} ₪
-                                              </td>
-                                            </tr>
-                                          </>
-                                        );
-                                      } catch (e) {
-                                        return <tr><td colSpan="7" className="p-4 text-center text-red-500">שגיאה בפענוח כתב הכמויות</td></tr>;
-                                      }
-                                    })()}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          )}
+                                            } catch (e) {
+                                              return <tr><td colSpan="7" className="p-4 text-center text-red-500">שגיאה בפענוח כתב הכמויות</td></tr>;
+                                            }
+                                          })()}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {after && (
+                                  <div className="mt-8 border-t border-slate-100 pt-6 prose prose-sm max-w-none text-right text-text-primary whitespace-pre-wrap leading-relaxed">
+                                    {renderCleanContentWithTables(after)}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
