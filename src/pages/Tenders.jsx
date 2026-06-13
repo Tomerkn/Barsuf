@@ -109,6 +109,65 @@ const renderCleanContentWithTables = (text) => {
   return <div className="space-y-4">{elements}</div>;
 };
 
+const downloadProposalAsPDF = (tender) => {
+  const element = document.getElementById(`proposal-container-${tender.id}`);
+  if (!element) return;
+  
+  // שכפול האלמנט לצורך עיצוב נקי ל-PDF
+  const cloned = element.cloneNode(true);
+  cloned.style.padding = '35px';
+  cloned.style.backgroundColor = '#ffffff';
+  cloned.style.color = '#1e293b';
+  
+  // הסרת כפתורי הורדה או בקרים אחרים שאינם רלוונטיים ל-PDF
+  const buttons = cloned.querySelectorAll('button');
+  buttons.forEach(b => b.remove());
+
+  // הוספת לוגו וכותרת מכתב רשמי
+  const header = document.createElement('div');
+  header.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; direction: rtl; font-family: system-ui, -apple-system, sans-serif;">
+      <div>
+        <h1 style="color: #064e3b; font-size: 22px; font-weight: 800; margin: 0;">בארסוף הנדסה ובנייה בע"מ</h1>
+        <p style="font-size: 11px; color: #475569; margin: 5px 0 0 0;">מערכת ברבור AI - ניתוח מכרזים והצעות מחיר</p>
+      </div>
+      <div style="text-align: left; font-size: 11px; color: #475569; direction: ltr;">
+        <p style="margin: 0;">תאריך: ${new Date().toLocaleDateString('he-IL')}</p>
+        <p style="margin: 3px 0 0 0;">מכרז: ${tender.name.replace('.pdf', '')}</p>
+      </div>
+    </div>
+  `;
+  cloned.insertBefore(header, cloned.firstChild);
+
+  // הוספת כותרת תחתונה
+  const footer = document.createElement('div');
+  footer.innerHTML = `
+    <div style="margin-top: 40px; border-top: 1px dashed #cbd5e1; padding-top: 15px; display: flex; justify-content: space-between; font-size: 10px; color: #64748b; direction: rtl; font-family: system-ui, -apple-system, sans-serif;">
+      <p style="margin: 0;">חתימת המציע: בארסוף הנדסה ובנייה בע"מ</p>
+      <p style="margin: 0;">הופק אוטומטית באמצעות מערכת ברבור AI</p>
+    </div>
+  `;
+  cloned.appendChild(footer);
+
+  const opt = {
+    margin:       10,
+    filename:     `הצעת_מחיר_${tender.name.replace('.pdf', '')}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+  
+  if (window.html2pdf) {
+    window.html2pdf().set(opt).from(cloned).save();
+  } else {
+    // מנגנון גיבוי במידה והספרייה לא נטענה
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`<html><head><title>הדפסת הצעה</title></head><body style="direction: rtl; font-family: system-ui;">${cloned.innerHTML}</body></html>`);
+    printWindow.document.close();
+    printWindow.print();
+  }
+};
+
 export default function Tenders() {
   // --- המשתנים של הדף (הזיכרון המקומי של המסך) ---
   const [tenders, setTenders] = useState([]); // רשימת המכרזים שהעלינו
@@ -207,7 +266,15 @@ export default function Tenders() {
       await fetchTenders(); // מרעננים נתונים
       // מוודאים שהמסך מראה את המכרז המעודכן עם ההצעה
       const updated = await api.getTenders();
-      setSelectedTender(updated.find(t => t.id === id));
+      const updatedTender = updated.find(t => t.id === id);
+      setSelectedTender(updatedTender);
+
+      // הורדה אוטומטית של קובץ ה-PDF לעמדת הקצה לאחר שהדף התעדכן
+      if (updatedTender && updatedTender.proposal) {
+        setTimeout(() => {
+          downloadProposalAsPDF(updatedTender);
+        }, 1000);
+      }
     } catch (error) {
       alert('ברבור נתקע קצת ביצירת ההצעה, נסה שוב.');
     } finally {
@@ -512,12 +579,19 @@ export default function Tenders() {
                         </div>
                       </div>
                     ) : (
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-bold flex items-center gap-2 text-emerald-700 border-b pb-2 flex-1">
+                      <div id={`proposal-container-${selectedTender.id}`}>
+                        <div className="flex items-center justify-between mb-4 border-b pb-2">
+                          <h3 className="text-lg font-bold flex items-center gap-2 text-emerald-700">
                             <TrendingUp className="w-5 h-5" />
                             הצעת מחיר מבוססת היסטוריה
                           </h3>
+                          <button
+                            onClick={() => downloadProposalAsPDF(selectedTender)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all text-xs font-bold shadow-sm cursor-pointer"
+                          >
+                            <Download className="w-4 h-4" />
+                            הורד הצעה כ-PDF
+                          </button>
                         </div>
                         <div className="bg-emerald-50/30 p-6 rounded-2xl border border-emerald-100 shadow-inner mb-6">
                           {selectedTender.proposal.includes('[CONFIDENCE]') && (
