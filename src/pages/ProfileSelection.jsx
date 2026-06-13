@@ -15,7 +15,7 @@ const profiles = [ // רשימה של כל האנשים שיכולים להיכ�
     name: 'מנהל פרויקטים', // השם שיוצג
     role: 'פיקוח וביצוע בשטח', // התפקיד שלו
     icon: <HardHat className="w-8 h-8 text-brand" />, // האייקון של מנהל הפרויקטים
-    avatar: '/pm.png', // התמונה המגניבה שלו (Memoji)
+    avatar: '/pm_group.png', // התמונה המגניבה שלו (Memoji)
     bg: 'bg-orange-50' // צבע רקע עדין
   },
   {
