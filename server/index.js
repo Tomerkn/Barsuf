@@ -298,10 +298,10 @@ app.post('/api/tenders/:id/proposal', async (req, res) => {
     
     // Update tender record (keep status as 'הועבר לפרויקט' if it was already converted, or change to 'מוכן')
     const nextStatus = tender.status === 'הועבר לפרויקט' ? 'הועבר לפרויקט' : 'מוכן';
-    db.prepare('UPDATE tenders SET proposal = ?, boq_json = ?, status = ? WHERE id = ?').run(proposal, boq_json, nextStatus, req.params.id);
+    db.prepare('UPDATE tenders SET proposal = ?, boq_json = COALESCE(?, boq_json), status = ? WHERE id = ?').run(proposal, boq_json, nextStatus, req.params.id);
     
     // Also save the proposal in the converted project if it exists!
-    db.prepare('UPDATE projects SET proposal = ?, boq_json = ? WHERE tender_id = ?').run(proposal, boq_json, req.params.id);
+    db.prepare('UPDATE projects SET proposal = ?, boq_json = COALESCE(?, boq_json) WHERE tender_id = ?').run(proposal, boq_json, req.params.id);
     
     console.log(`✅ Proposal generation complete for tender-${req.params.id} (updated tender and project if exists)`);
     

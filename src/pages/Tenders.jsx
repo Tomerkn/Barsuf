@@ -334,13 +334,6 @@ export default function Tenders() {
       const updated = await api.getTenders();
       const updatedTender = updated.find(t => t.id === id);
       setSelectedTender(updatedTender);
-
-      // הורדה אוטומטית של קובץ ה-PDF לעמדת הקצה לאחר שהדף התעדכן
-      if (updatedTender && updatedTender.proposal) {
-        setTimeout(() => {
-          downloadProposalAsPDF(updatedTender);
-        }, 1000);
-      }
     } catch (error) {
       alert('ברבור נתקע קצת ביצירת ההצעה, נסה שוב.');
     } finally {
