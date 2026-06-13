@@ -65,7 +65,7 @@ function AppContent() { // הפונקציה הראשית שמחליטה מה ל�
           profile={selectedProfile} // שולחים את המידע על המשתמש שנבחר
           onLogout={handleLogout} // שולחים את היכולת להתנתק
         />
-        <main className="flex-1 overflow-y-auto relative"> {/* פה מוצג התוכן של כל דף */}
+        <main className={`flex-1 relative ${location.pathname === '/tenders' ? 'overflow-hidden' : 'overflow-y-auto'}`}> {/* פה מוצג התוכן של כל דף */}
           <Routes> {/* רשימה של כל הכתובות האפשריות באתר */}
             <Route path="/" element={<Projects />} /> {/* דף הבית מראה את רשימת הפרויקטים */}
             <Route path="/overview" element={<Overview />} /> {/* דף ניהול כללי */}
