@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { Storage } from '@google-cloud/storage';
 import db from './db.js';
-import './seed.js';
+import { reseedDatabase } from './seed.js';
 import { ingestDocument, askQuestion, analyzeReceipt, analyzeTender, generateProposal, vectorStore, VECTOR_DB_PATH } from './ai.js';
 import { uploadFileToCloud, ensureFileExistsLocally } from './storage.js';
 
@@ -56,6 +56,17 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 
 // API
 app.get('/api/health', (req, res) => res.json({ status: 'ok', root }));
+
+app.post('/api/reseed', async (req, res) => {
+  console.log('🔄 Manual reseed request received');
+  try {
+    await reseedDatabase(true);
+    res.json({ success: true, message: 'Database successfully reseeded with rich presentation data!' });
+  } catch (error) {
+    console.error('❌ Reseed failed:', error);
+    res.status(500).json({ error: 'Failed to reseed database', details: error.message });
+  }
+});
 
 app.get('/api/projects', (req, res) => {
   const projects = db.prepare('SELECT * FROM projects').all();
