@@ -75,21 +75,45 @@ const renderCleanContentWithTables = (text) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     const isRow = line.startsWith('|') && line.endsWith('|') && line.split('|').length > 2;
+    const isHeading = line.startsWith('#');
     
-    if (isRow) {
+    if (isRow || isHeading) {
       flushTextBuffer(i);
       
-      const isSeparator = line.replace(/[:-\s|]/g, '') === '';
-      if (isSeparator) {
-        continue;
-      }
-      
-      const cells = line.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
-      
-      if (!currentTable) {
-        currentTable = { headers: cells, rows: [] };
-      } else {
-        currentTable.rows.push(cells);
+      if (isRow) {
+        const isSeparator = line.replace(/[:-\s|]/g, '') === '';
+        if (isSeparator) {
+          continue;
+        }
+        
+        const cells = line.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+        
+        if (!currentTable) {
+          currentTable = { headers: cells, rows: [] };
+        } else {
+          currentTable.rows.push(cells);
+        }
+      } else if (isHeading) {
+        if (currentTable) {
+          elements.push(renderStyledTable(currentTable, i));
+          currentTable = null;
+        }
+        
+        const match = line.match(/^(#+)\s*(.*)$/);
+        if (match) {
+          const level = match[1].length;
+          const headingText = match[2];
+          const headingClasses = 
+            level === 1 ? "text-xl font-extrabold text-slate-800 mt-6 mb-3 border-b border-slate-100 pb-1" :
+            level === 2 ? "text-lg font-bold text-slate-800 mt-5 mb-2" :
+            "text-base font-bold text-slate-800 mt-4 mb-2";
+          
+          elements.push(
+            <div key={`heading-${i}`} className={`${headingClasses} text-right`}>
+              {headingText}
+            </div>
+          );
+        }
       }
     } else {
       if (currentTable) {
