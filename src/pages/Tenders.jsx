@@ -438,7 +438,7 @@ export default function Tenders() {
     <div className="p-6 flex flex-col gap-6 w-full max-w-[1600px] mx-auto h-full overflow-hidden">
       {/* כפתור חזרה וכותרת הדף */}
       <div className="flex flex-col gap-2 shrink-0">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center">
           <Link 
             to="/" 
             className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all font-bold text-xs"
@@ -446,15 +446,6 @@ export default function Tenders() {
             <ChevronRight className="w-4 h-4" />
             <span>חזרה לפרויקטים</span>
           </Link>
-
-          <button 
-            onClick={handleReseed}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl transition-all font-bold text-xs shadow-sm cursor-pointer"
-            title="איפוס ושחזר נתוני הדמו למצב התחלתי"
-          >
-            <Clock className="w-4 h-4" />
-            <span>שחזר נתוני הדגמה</span>
-          </button>
         </div>
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-2">
