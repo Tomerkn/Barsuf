@@ -48,6 +48,11 @@ export async function reseedDatabase(force = false) {
     db.prepare("DELETE FROM contractors").run();
     db.prepare("DELETE FROM tenders").run();
     db.prepare("DELETE FROM files").run();
+    try {
+      db.prepare("DELETE FROM sqlite_sequence").run();
+    } catch (e) {
+      console.warn("Failed to reset sqlite_sequence:", e.message);
+    }
     db.prepare("PRAGMA foreign_keys = ON").run();
   }
 
