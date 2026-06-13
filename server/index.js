@@ -475,9 +475,25 @@ app.post('/api/global-knowledge', upload.single('file'), async (req, res) => {
   }
 });
 
-// --- Other Financial Entities ---
 app.get('/api/expenses', (req, res) => {
-  const expenses = db.prepare('SELECT * FROM expenses').all();
+  const projectId = req.query.projectId || req.query.project_id;
+  let query = `
+    SELECT e.*, 
+           c.name as contractor_name, 
+           b.category as budget_category, 
+           p.name as project_name 
+    FROM expenses e
+    LEFT JOIN contractors c ON e.contractor_id = c.id
+    LEFT JOIN budgets b ON e.budget_id = b.id
+    LEFT JOIN projects p ON e.project_id = p.id
+  `;
+  let expenses;
+  if (projectId) {
+    query += ' WHERE e.project_id = ?';
+    expenses = db.prepare(query).all(projectId);
+  } else {
+    expenses = db.prepare(query).all();
+  }
   res.json(expenses);
 });
 app.get('/api/incomes', (req, res) => res.json(db.prepare('SELECT * FROM incomes').all()));
