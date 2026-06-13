@@ -118,14 +118,25 @@ export const api = { // יצירת השליח שמדבר עם השרת
   },
   
   // --- בינה מלאכותית ומכרזים ---
-  analyzeTender: async (file) => { // ניתוח מכרז חכם
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await fetch(`${API_BASE_URL}/analyze-tender`, {
-      method: 'POST',
-      body: formData
+  analyzeTender: async (tenderId) => { // ניתוח מכרז חכם
+    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/analyze`, {
+      method: 'POST'
     });
     if (!response.ok) throw new Error('נכשל בניתוח המכרז');
+    return response.json();
+  },
+  resetTenderProposal: async (tenderId) => { // איפוס הצעת מחיר
+    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/reset-proposal`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('נכשל באיפוס הצעת המחיר');
+    return response.json();
+  },
+  reseed: async () => { // שחזור נתוני דמו
+    const response = await fetch(`${API_BASE_URL}/reseed`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('נכשל בשחזור נתוני דמו');
     return response.json();
   },
   uploadGlobalKnowledge: async (file) => { // העלאת ידע ארגוני

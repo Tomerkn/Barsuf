@@ -199,24 +199,29 @@ export default function Tenders() {
   // מנגנון רענון אוטומטי כדי לראות סטטוס חי של ברבור
   // עוצר פולינג כשהמכרז הושלם, נכשל, או שאין בעיבוד
   useEffect(() => {
-    const hasInProgress = tenders.some(t => 
+    const hasInProgress = generating || tenders.some(t => 
       t.status !== 'נותח' && 
       t.status !== 'הצעה מוכנה' && 
       t.status !== 'מוכן' &&
       t.status !== 'שגיאה' &&
+      t.status !== 'הועבר לפרויקט' &&
       t.status !== null
     );
 
     // מנגנון רענון מהיר (כל 1 שניה) בעת ניתוח/טעינה פעילים לעדכון הסטטוס ומד ההתקדמות
     if (hasInProgress) {
       const interval = setInterval(async () => {
-        const data = await api.getTenders();
-        setTenders(data);
-        setSelectedTender(prev => prev ? data.find(t => t.id === prev.id) || prev : null);
+        try {
+          const data = await api.getTenders();
+          setTenders(data);
+          setSelectedTender(prev => prev ? data.find(t => t.id === prev.id) || prev : null);
+        } catch (err) {
+          console.error("Polling tenders failed:", err);
+        }
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [tenders]);
+  }, [tenders, generating]);
 
   useEffect(() => {
     fetchTenders();
@@ -242,17 +247,26 @@ export default function Tenders() {
     setUploading(true); // מראים למשתמש שאנחנו עובדים
     setNewProjectLink(null); // מאפסים קישור ישן
     try {
-      const res = await api.createTender(file); // שולחים את הקובץ לשרת
+      const res = await api.createTender(file); // שולחים את הקובץ לשרת ומקבלים מזהה מיידי
       const data = await api.getTenders();
       setTenders(data);
-      // בחירה אוטומטית במכרז החדש כדי להציג את התקדמות הניתוח מייד ללא צורך בלחיצה נוספת
+      
+      let newT;
       if (res && res.id) {
-        const newT = data.find(t => t.id === res.id);
+        newT = data.find(t => t.id === res.id);
         if (newT) setSelectedTender(newT);
+      }
+      
+      setUploading(false); // העלאה הסתיימה, מורידים את העיגול המסתובב מהכפתור
+      
+      // הפעלת הניתוח באופן אסינכרוני ברקע כדי שהפולינג יציג את ההתקדמות ב-UI
+      if (res && res.id) {
+        api.analyzeTender(res.id).catch(err => {
+          console.error("שגיאה במהלך הניתוח האוטומטי:", err);
+        });
       }
     } catch (error) {
       alert('משהו השתבש בהעלאה, נסה שוב.');
-    } finally {
       setUploading(false);
     }
   };
@@ -304,8 +318,10 @@ export default function Tenders() {
       const result = await api.convertTenderToProject(id);
       if (result.success && result.projectId) {
         setNewProjectLink(`/projects/${result.projectId}`);
-        setSelectedTender(null);
-        await fetchTenders();
+        const data = await api.getTenders();
+        setTenders(data);
+        const updated = data.find(t => t.id === id);
+        if (updated) setSelectedTender(updated);
       } else {
         throw new Error('שגיאה במהלך העברת המכרז');
       }
@@ -313,6 +329,38 @@ export default function Tenders() {
       alert('נכשל בהעברת המכרז לפרויקט: ' + error.message);
     } finally {
       setConverting(false);
+    }
+  };
+
+  // איפוס הצעת מחיר כדי לאפשר הדגמה חוזרת
+  const handleResetProposal = async (id) => {
+    if (!window.confirm('האם ברצונך לאפס את הצעת המחיר של מכרז זה? פעולה זו תאפשר להדגים שוב את הפקת הצעת המחיר האוטומטית.')) return;
+    try {
+      await api.resetTenderProposal(id);
+      const data = await api.getTenders();
+      setTenders(data);
+      const updated = data.find(t => t.id === id);
+      if (updated) setSelectedTender(updated);
+    } catch (error) {
+      alert('נכשל באיפוס הצעת המחיר: ' + error.message);
+    }
+  };
+
+  // שחזר נתוני דמו מלאים לאיפוס המצגת מחר
+  const handleReseed = async () => {
+    if (!window.confirm('האם ברצונך לאפס ולשחזר את כל נתוני ההדגמה של המערכת? כל השינויים שביצעת יימחקו והמערכת תחזור למצב הדמו האופטימלי.')) return;
+    setLoading(true);
+    try {
+      await api.reseed();
+      const data = await api.getTenders();
+      setTenders(data);
+      setSelectedTender(null);
+      setNewProjectLink(null);
+      alert('נתוני ההדגמה שוחזרו בהצלחה!');
+    } catch (error) {
+      alert('שגיאה בשחזור נתוני הדמו: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -329,7 +377,7 @@ export default function Tenders() {
     <div className="p-6 flex flex-col gap-6 w-full max-w-[1600px] mx-auto h-[calc(100vh-4rem)] overflow-hidden">
       {/* כפתור חזרה וכותרת הדף */}
       <div className="flex flex-col gap-2 shrink-0">
-        <div className="flex items-center">
+        <div className="flex items-center justify-between">
           <Link 
             to="/" 
             className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all font-bold text-xs"
@@ -337,6 +385,15 @@ export default function Tenders() {
             <ChevronRight className="w-4 h-4" />
             <span>חזרה לפרויקטים</span>
           </Link>
+
+          <button 
+            onClick={handleReseed}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl transition-all font-bold text-xs shadow-sm cursor-pointer"
+            title="איפוס ושחזר נתוני הדמו למצב התחלתי"
+          >
+            <Clock className="w-4 h-4" />
+            <span>שחזר נתוני הדגמה</span>
+          </button>
         </div>
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-2">
@@ -407,7 +464,9 @@ export default function Tenders() {
                     )}
                   </div>
                   <div className={`px-2 py-1 rounded-full text-[10px] font-bold shrink-0 ${
+                    tender.status === 'הועבר לפרויקט' ? 'bg-purple-100 text-purple-700' :
                     tender.status === 'נותח' ? 'bg-emerald-100 text-emerald-700' :
+                    tender.status === 'נותח (ראשוני)' ? 'bg-amber-100 text-amber-700 animate-pulse' :
                     tender.status === 'הצעה מוכנה' || tender.status === 'מוכן' ? 'bg-blue-100 text-blue-700' :
                     'bg-amber-100 text-amber-700'
                   }`}>
@@ -446,15 +505,38 @@ export default function Tenders() {
                     <span>מחק מכרז</span>
                   </button>
 
-                  {/* כפתור העברה לפרויקטים */}
-                  {selectedTender.analysis && (
-                    <button 
-                      onClick={() => handleConvertToProject(selectedTender.id)}
-                      disabled={converting}
-                      className="flex items-center gap-2 px-4 py-2 bg-[var(--color-brand)] text-white rounded-xl hover:bg-[#46a2aa] transition-all shadow-sm font-bold text-xs disabled:opacity-50"
+                  {/* כפתור מעבר לפרויקט הקיים אם כבר הועבר */}
+                  {selectedTender.project_id ? (
+                    <Link 
+                      to={`/projects/${selectedTender.project_id}`}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-sm font-bold text-xs"
                     >
-                      {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Briefcase className="w-4 h-4" />}
-                      <span>העבר לפרויקטים שנותחו</span>
+                      <ExternalLink className="w-4 h-4" />
+                      <span>צפה בפרויקט הפעיל</span>
+                    </Link>
+                  ) : (
+                    /* כפתור העברה לפרויקטים (מוצג רק אם עדיין לא הועבר) */
+                    selectedTender.analysis && selectedTender.status !== 'שגיאה' && (
+                      <button 
+                        onClick={() => handleConvertToProject(selectedTender.id)}
+                        disabled={converting}
+                        className="flex items-center gap-2 px-4 py-2 bg-[var(--color-brand)] text-white rounded-xl hover:bg-[#46a2aa] transition-all shadow-sm font-bold text-xs disabled:opacity-50"
+                      >
+                        {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Briefcase className="w-4 h-4" />}
+                        <span>העבר לפרויקטים שנותחו</span>
+                      </button>
+                    )
+                  )}
+
+                  {/* כפתור איפוס הצעת מחיר להדגמה חוזרת */}
+                  {selectedTender.proposal && (
+                    <button 
+                      onClick={() => handleResetProposal(selectedTender.id)}
+                      className="flex items-center gap-2 px-3.5 py-2 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-all border border-amber-100 font-bold text-xs cursor-pointer"
+                      title="אפס הצעה לצורך הדגמה חוזרת"
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span>אפס הצעת מחיר</span>
                     </button>
                   )}
 
@@ -463,7 +545,7 @@ export default function Tenders() {
                     <button 
                       onClick={() => generateProposal(selectedTender.id)}
                       disabled={generating}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm font-bold text-xs"
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm font-bold text-xs cursor-pointer"
                     >
                       {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <BrainCircuit className="w-4 h-4" />}
                       <span>הפקת הצעת מחיר אוטומטית</span>
@@ -524,12 +606,10 @@ export default function Tenders() {
                           <p className="font-bold text-red-600 text-base">ברבור נתקל בבעיה בניתוח המכרז</p>
                           <p className="text-text-muted text-sm mt-1">הקובץ אולי פגום, מוגן בסיסמה, או שהשירות זמנית עמוס.</p>
                         </div>
-                        <button
-                          onClick={handleFileUpload}
-                          className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-                        >
-                          העלה את המכרז מחדש
-                        </button>
+                        <label className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-sm font-medium transition-colors cursor-pointer">
+                          <span>העלה את המכרז מחדש</span>
+                          <input type="file" accept=".pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                        </label>
                       </div>
                     ) : (
                       // מצב טעינה תקין - מציג פס התקדמות
@@ -543,9 +623,10 @@ export default function Tenders() {
                           <div 
                             className="bg-[var(--color-brand)] h-full transition-all duration-700 ease-in-out" 
                             style={{ 
-                              width: selectedTender.status?.includes('קורא') ? '25%' :
+                              width: selectedTender.status === 'נותח (ראשוני)' ? '75%' :
+                                     selectedTender.status?.includes('קורא') ? '25%' :
                                      selectedTender.status?.includes('שלב 1') ? '55%' :
-                                     selectedTender.status?.includes('הושלם') || selectedTender.status?.includes('נותח') ? '100%' :
+                                     selectedTender.status?.includes('הושלם') || selectedTender.status?.includes('הועבר') || selectedTender.status === 'נותח' ? '100%' :
                                      selectedTender.status === 'מעלה...' ? '10%' :
                                      '40%'
                             }}
@@ -570,9 +651,9 @@ export default function Tenders() {
                           <div 
                             className="bg-emerald-500 h-full transition-all duration-700 ease-in-out" 
                             style={{ 
-                              width: selectedTender.status === 'מתחבר למאגר המחירים ההיסטורי...' ? '20%' :
-                                     selectedTender.status === 'מנתח כמויות וסעיפים מול ההיסטוריה...' ? '50%' :
-                                     selectedTender.status === 'בונה כתב כמויות (BoQ) ומחשב מחיר מטרה...' ? '85%' :
+                              width: selectedTender.status?.includes('מתחבר') ? '20%' :
+                                     selectedTender.status?.includes('מנתח') ? '50%' :
+                                     selectedTender.status?.includes('בונה') ? '85%' :
                                      '10%'
                             }}
                           />

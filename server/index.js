@@ -206,8 +206,24 @@ app.post('/api/projects/:id/files', upload.single('file'), async (req, res) => {
 });
 
 app.get('/api/tenders', (req, res) => {
-  const tenders = db.prepare('SELECT * FROM tenders ORDER BY upload_date DESC').all();
+  const tenders = db.prepare(`
+    SELECT t.*, p.id as project_id 
+    FROM tenders t 
+    LEFT JOIN projects p ON p.tender_id = t.id 
+    ORDER BY t.upload_date DESC
+  `).all();
   res.json(tenders);
+});
+
+app.get('/api/tenders/:id', (req, res) => {
+  const tender = db.prepare(`
+    SELECT t.*, p.id as project_id 
+    FROM tenders t 
+    LEFT JOIN projects p ON p.tender_id = t.id 
+    WHERE t.id = ?
+  `).get(req.params.id);
+  if (!tender) return res.status(404).json({ error: 'Tender not found' });
+  res.json(tender);
 });
 
 app.post('/api/tenders', upload.single('file'), async (req, res) => {
@@ -224,13 +240,33 @@ app.post('/api/tenders', upload.single('file'), async (req, res) => {
       console.error(`☁️ GCS upload failed for tender PDF:`, e)
     );
 
-    // ביצוע אינדוקס RAG באופן סינכרוני כדי למנוע קריסה/האטה ב-Cloud Run עקב CPU throttling
+    res.status(201).json({ id: tenderId });
+  } catch (err) {
+    console.error('Database error during tender upload:', err);
+    res.status(500).json({ error: 'Failed to create tender entry', details: err.message });
+  }
+});
+
+app.post('/api/tenders/:id/analyze', async (req, res) => {
+  const tenderId = Number(req.params.id);
+  console.log(`🤖 Starting analysis request synchronously for tender-${tenderId}...`);
+  try {
+    const tender = db.prepare('SELECT * FROM tenders WHERE id = ?').get(tenderId);
+    if (!tender) return res.status(404).json({ error: 'Tender not found' });
+
+    const filePath = path.join(UPLOADS_DIR, tender.filename);
+    
+    // מוודאים שהקובץ קיים מקומית (אם השרת אותחל או הועבר)
+    await ensureFileExistsLocally(filePath).catch(e => 
+      console.error(`Failed to ensure file exists locally for analysis:`, e.message)
+    );
+
+    // ביצוע אינדוקס RAG באופן סינכרוני
     console.log(`🤖 Starting RAG ingestion synchronously for tender-${tenderId}...`);
-    await ingestDocument(`tender-${tenderId}`, req.file.path).catch(e => 
+    await ingestDocument(`tender-${tenderId}`, filePath).catch(e => 
       console.error(`RAG ingestion failed for tender-${tenderId}:`, e)
     );
 
-    // מנגנון הניתוח הדו-שלבי מורץ באופן סינכרוני מלא בשרת על מנת להבטיח הקצאת CPU תקינה בענן
     const onPhaseOneComplete = (quickAnalysis) => {
       db.prepare('UPDATE tenders SET analysis = ?, status = ? WHERE id = ?')
         .run(quickAnalysis, 'נותח (ראשוני)', tenderId);
@@ -238,22 +274,17 @@ app.post('/api/tenders', upload.single('file'), async (req, res) => {
     };
 
     console.log(`🤖 Starting smart tender analysis synchronously for tender-${tenderId}...`);
-    try {
-      const { analysis, boq_json } = await analyzeTender(req.file.path, tenderId, onPhaseOneComplete);
-      db.prepare('UPDATE tenders SET analysis = ?, boq_json = ?, status = ? WHERE id = ?')
-        .run(analysis, boq_json, 'נותח', tenderId);
-      console.log(`✅ Phase 2 deep analysis + BoQ saved for tender ${tenderId}, boq: ${boq_json ? 'yes' : 'none'}`);
-    } catch (err) {
-      console.error('AI Analysis failed for tender:', tenderId, err);
-      // שמירת השגיאה בבסיס הנתונים לדיבאג בענן
-      const errorMsg = `שגיאה בניתוח המכרז: ${err.message}\n${err.stack || ''}`;
-      db.prepare('UPDATE tenders SET status = ?, analysis = ? WHERE id = ?').run('שגיאה', errorMsg, tenderId);
-    }
-
-    res.status(201).json({ id: tenderId });
+    const { analysis, boq_json } = await analyzeTender(filePath, tenderId, onPhaseOneComplete);
+    db.prepare('UPDATE tenders SET analysis = ?, boq_json = ?, status = ? WHERE id = ?')
+      .run(analysis, boq_json, 'נותח', tenderId);
+    console.log(`✅ Phase 2 deep analysis + BoQ saved for tender ${tenderId}`);
+    
+    res.json({ success: true });
   } catch (err) {
-    console.error('Database error during tender upload:', err);
-    res.status(500).json({ error: 'Failed to create tender entry', details: err.message });
+    console.error('AI Analysis failed for tender:', tenderId, err);
+    const errorMsg = `שגיאה בניתוח המכרז: ${err.message}\n${err.stack || ''}`;
+    db.prepare('UPDATE tenders SET status = ?, analysis = ? WHERE id = ?').run('שגיאה', errorMsg, tenderId);
+    res.status(500).json({ error: 'AI Analysis failed', details: err.message });
   }
 });
 
@@ -361,8 +392,8 @@ app.post('/api/tenders/:id/convert-to-project', async (req, res) => {
       });
     }
     
-    // 5. Delete tender as it has been successfully transferred
-    db.prepare('DELETE FROM tenders WHERE id = ?').run(tenderId);
+    // 5. Update tender status to indicate it has been successfully transferred
+    db.prepare("UPDATE tenders SET status = 'הועבר לפרויקט' WHERE id = ?").run(tenderId);
     
     // Backup DB
     db.backupToCloud().catch(e => console.error('Cloud backup failed:', e));
@@ -371,6 +402,17 @@ app.post('/api/tenders/:id/convert-to-project', async (req, res) => {
   } catch (err) {
     console.error('Tender conversion failed:', err);
     res.status(500).json({ error: 'Failed to convert tender to project', details: err.message });
+  }
+});
+
+app.post('/api/tenders/:id/reset-proposal', (req, res) => {
+  const tid = Number(req.params.id);
+  try {
+    db.prepare("UPDATE tenders SET proposal = NULL, status = 'נותח' WHERE id = ?").run(tid);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to reset proposal:', err);
+    res.status(500).json({ error: 'Failed to reset proposal', details: err.message });
   }
 });
 
