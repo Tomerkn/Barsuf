@@ -1,4 +1,7 @@
 import db from './db.js'; // מביאים את החיבור למסד הנתונים
+import { uploadFileToCloud } from './storage.js';
+import fs from 'fs';
+import path from 'path';
 
 export async function reseedDatabase(force = false) {
   const projectsCount = db.prepare("SELECT count(*) as count FROM projects").get().count;
@@ -9,6 +12,27 @@ export async function reseedDatabase(force = false) {
   }
 
   console.log('Seeding database with rich presentation data...');
+
+  // יצירת קבצי דמו פיזיים והעלאתם לענן כדי למנוע שגיאות קריאה של ה-PDF
+  const uploadsDir = '/tmp/barsuf_data/uploads';
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+  const rootDir = process.cwd();
+  const testPdfPath = path.join(rootDir, 'test_tender.pdf');
+  
+  if (fs.existsSync(testPdfPath)) {
+    const file1 = '1718228000000-tender_school_dekel.pdf';
+    const file2 = '1718229000000-tender_sports_hall_netanya.pdf';
+    const path1 = path.join(uploadsDir, file1);
+    const path2 = path.join(uploadsDir, file2);
+
+    fs.copyFileSync(testPdfPath, path1);
+    fs.copyFileSync(testPdfPath, path2);
+
+    console.log('☁️ Copying and uploading dummy tender PDFs...');
+    await uploadFileToCloud(path1, file1).catch(e => console.error(`Failed to upload ${file1} to GCS:`, e.message));
+    await uploadFileToCloud(path2, file2).catch(e => console.error(`Failed to upload ${file2} to GCS:`, e.message));
+  }
 
   if (force) {
     console.log('Wiping database tables...');
