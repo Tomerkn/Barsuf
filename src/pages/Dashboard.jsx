@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'; // מביאים את הכל�
 import { useParams } from 'react-router-dom'; // כלי לקבלת מספר הפרויקט מהכתובת בדפדפן
 import { KpiCard } from '../components/ui/KpiCard'; // כרטיסי מידע עם מספרים גדולים
 import { ProgressBar } from '../components/ui/ProgressBar'; // פסי התקדמות
-import { Wallet, TrendingUp, AlertTriangle, Percent, Loader2, FileSearch, Search, BrainCircuit } from 'lucide-react'; // אייקונים
+import { Wallet, TrendingUp, AlertTriangle, Percent, Loader2, FileSearch, Search, BrainCircuit, ClipboardList } from 'lucide-react'; // אייקונים
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'; // כלים לציור גרפים
 import { api } from '../services/api'; // השליח שמדבר עם השרת
 import { AIFloatingWidget } from '../components/ui/AIFloatingWidget'; // הבוט הצף (ברבור)
@@ -343,6 +343,67 @@ export function Dashboard() { // דף הלוח בקרה (דשבורד) של הפ
                       </div>
                     )}
                     <div>{renderCleanContentWithTables(project.proposal)}</div>
+                    {project.boq_json && (
+                      <div className="mt-6 border-t border-emerald-100 pt-4">
+                        <h5 className="font-bold text-xs text-emerald-800 mb-3 flex items-center gap-1.5">
+                          <ClipboardList className="w-4.5 h-4.5" />
+                          כתב כמויות מפורט (BOQ) ואומדן עלויות
+                        </h5>
+                        <div className="overflow-x-auto rounded-lg border border-emerald-100 shadow-sm bg-white">
+                          <table className="w-full text-right text-[11px] border-collapse">
+                            <thead>
+                              <tr className="bg-emerald-50/50 text-emerald-800 font-bold border-b border-emerald-100">
+                                <th className="p-2 w-8 text-center">#</th>
+                                <th className="p-2 w-20">סעיף</th>
+                                <th className="p-2">תיאור העבודה</th>
+                                <th className="p-2 w-16 text-center">כמות</th>
+                                <th className="p-2 w-16 text-center">יחידה</th>
+                                <th className="p-2 w-24 text-left">מחיר יחידה</th>
+                                <th className="p-2 w-24 text-left">סה"כ (₪)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-emerald-50 text-slate-700">
+                              {(() => {
+                                try {
+                                  const boq = JSON.parse(project.boq_json);
+                                  if (!Array.isArray(boq)) return null;
+                                  let totalSum = 0;
+                                  return (
+                                    <>
+                                      {boq.map((item, idx) => {
+                                        const qty = Number(item.quantity) || 0;
+                                        const price = Number(item.unitPrice || item.price || 0);
+                                        const lineTotal = qty * price;
+                                        totalSum += lineTotal;
+                                        return (
+                                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-2 text-center text-slate-400 font-medium">{idx + 1}</td>
+                                            <td className="p-2 font-semibold text-slate-800">{item.section}</td>
+                                            <td className="p-2 text-slate-600">{item.item || item.description}</td>
+                                            <td className="p-2 text-center">{qty.toLocaleString('he-IL')}</td>
+                                            <td className="p-2 text-center">{item.unit || 'יח\''}</td>
+                                            <td className="p-2 text-left font-mono">{price.toLocaleString('he-IL')} ₪</td>
+                                            <td className="p-2 text-left font-bold text-slate-800 font-mono">{lineTotal.toLocaleString('he-IL')} ₪</td>
+                                          </tr>
+                                        );
+                                      })}
+                                      <tr className="bg-emerald-50/20 font-bold border-t border-emerald-100 text-emerald-900">
+                                        <td colSpan="6" className="p-2.5 text-right text-xs">סה"כ אומדן הצעת מחיר (לא כולל מע"מ):</td>
+                                        <td className="p-2.5 text-left text-xs font-extrabold font-mono border-b-2 border-double border-emerald-600">
+                                          {totalSum.toLocaleString('he-IL')} ₪
+                                        </td>
+                                      </tr>
+                                    </>
+                                  );
+                                } catch (e) {
+                                  return <tr><td colSpan="7" className="p-3 text-center text-red-500">שגיאה בפענוח כתב הכמויות</td></tr>;
+                                }
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <p className="text-text-muted text-xs italic py-4 text-center">לא הופקה הצעת מחיר היסטורית עבור פרויקט זה.</p>
