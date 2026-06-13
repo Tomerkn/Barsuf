@@ -43,6 +43,37 @@ const upload = multer({ storage });
 app.use(cors());
 app.use(express.json());
 
+// מידלוור גיבוי לענן אוטומטי לאחר כל שינוי בבסיס הנתונים (POST, PUT, DELETE)
+// המידלוור ממתין לסיום הגיבוי לפני שליחת התגובה למניעת מרוץ תהליכים (Race Condition) בשרת
+app.use('/api', async (req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method) && req.path !== '/reseed') {
+    const originalJson = res.json;
+    res.json = async function (body) {
+      console.log(`☁️ Database modified via ${req.method} ${req.path}. Backing up to GCS...`);
+      try {
+        await db.backupToCloud();
+        console.log('☁️ Database backup completed successfully.');
+      } catch (e) {
+        console.error('☁️ GCS backup failed:', e.message);
+      }
+      return originalJson.call(this, body);
+    };
+
+    const originalSend = res.send;
+    res.send = async function (body) {
+      console.log(`☁️ Database modified via ${req.method} ${req.path}. Backing up to GCS...`);
+      try {
+        await db.backupToCloud();
+        console.log('☁️ Database backup completed successfully.');
+      } catch (e) {
+        console.error('☁️ GCS backup failed:', e.message);
+      }
+      return originalSend.call(this, body);
+    };
+  }
+  next();
+});
+
 // הגשת קבצי האתר (Frontend)
 const distPath = path.join(root, 'dist');
 app.use(express.static(distPath));
