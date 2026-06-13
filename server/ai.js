@@ -336,7 +336,9 @@ ${truncatedText}
 6. חובה לכלול בלוק JSON במבנה הזה:
 \`\`\`json
 [{"id":1,"section":"שם סעיף","item":"תיאור פריט","quantity":100,"unit":"מ\"ר","unitPrice":150}]
-\`\`\``;
+\`\`\`
+7. חל איסור מוחלט להשתמש באייקונים, אימוג'ים (emojis) או סמלים גרפיים כלשהם בטקסט.
+8. סגנון הכתיבה צריך להיות אנושי, טבעי ומקצועי, ללא ניסוחים רובוטיים או תבניתיים מדי. הפרק "שלבי ביצוע להצגה ללקוח" חייב להיות מונגש ומפושט בגובה העיניים לקורא הלא-מקצועי.`;
 
       const { genAI } = getGeminiClients();
       const result = await generateContentWithFallback(genAI, GEMINI_PRO_CHAIN, fallbackPrompt, 45000);
