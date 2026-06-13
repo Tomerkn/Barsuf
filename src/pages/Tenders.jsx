@@ -192,6 +192,22 @@ const downloadProposalAsPDF = (tender) => {
   }
 };
 
+const calculateTargetPrice = (boqJson) => {
+  if (!boqJson) return 0;
+  try {
+    const boq = JSON.parse(boqJson);
+    if (!Array.isArray(boq)) return 0;
+    return boq.reduce((sum, item) => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice || item.price || 0);
+      return sum + (qty * price);
+    }, 0);
+  } catch (e) {
+    console.error("Failed to parse BoQ JSON for target price:", e);
+    return 0;
+  }
+};
+
 export default function Tenders() {
   // --- המשתנים של הדף (הזיכרון המקומי של המסך) ---
   const [tenders, setTenders] = useState([]); // רשימת המכרזים שהעלינו
@@ -249,7 +265,7 @@ export default function Tenders() {
         } catch (err) {
           console.error("Polling tenders failed:", err);
         }
-      }, 1000);
+      }, 3000);
       return () => clearInterval(interval);
     }
   }, [tenders, generating]);
@@ -502,11 +518,15 @@ export default function Tenders() {
                       <Clock className="w-3 h-3 text-text-muted" />
                       <span className="text-xs text-text-muted">{new Date(tender.upload_date).toLocaleDateString('he-IL')}</span>
                     </div>
-                    {tender.boq_json && (
-                      <div className="mt-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
-                        מחיר מטרה: {JSON.parse(tender.boq_json).reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0).toLocaleString()} ₪
-                      </div>
-                    )}
+                    {tender.boq_json && (() => {
+                      const total = calculateTargetPrice(tender.boq_json);
+                      if (total <= 0) return null;
+                      return (
+                        <div className="mt-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                          מחיר מטרה: {total.toLocaleString('he-IL')} ₪
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className={`px-2 py-1 rounded-full text-[10px] font-bold shrink-0 ${
                     tender.status === 'הועבר לפרויקט' ? 'bg-purple-100 text-purple-700' :

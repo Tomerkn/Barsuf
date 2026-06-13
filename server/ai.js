@@ -348,7 +348,14 @@ ${truncatedText}
       let boq_json = null;
       const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch) {
-        try { boq_json = jsonMatch[1].trim(); } catch (e) {}
+        try {
+          const parsed = JSON.parse(jsonMatch[1].trim());
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            boq_json = jsonMatch[1].trim();
+          }
+        } catch (e) {
+          console.warn('BoQ JSON validation failed in generateProposal:', e.message);
+        }
       }
       return { proposal: text.replace(jsonMatch?.[0] || '', '').trim(), boq_json };
     } catch (geminiErr) {
