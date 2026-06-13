@@ -1,5 +1,5 @@
 import React from 'react'; // מביאים את ריאקט כדי שנוכל לבנות את המסך
-import { User, ShieldCheck, Code, Calculator } from 'lucide-react'; // מביאים אייקונים יפים לכל פרופיל
+import { User, ShieldCheck, Code, Calculator, HardHat } from 'lucide-react'; // מביאים אייקונים יפים לכל פרופיל
 
 const profiles = [ // רשימה של כל האנשים שיכולים להיכנס למערכת
   {
@@ -11,19 +11,19 @@ const profiles = [ // רשימה של כל האנשים שיכולים להיכ�
     bg: 'bg-blue-50' // צבע רקע עדין
   },
   {
-    id: 'bar', // המזהה של בר
-    name: 'בר אזולאי', // השם שיוצג
-    role: 'מפתחת מספר 1', // התפקיד שלה
-    icon: <Code className="w-8 h-8 text-brand" />, // האייקון של המפתחת
-    avatar: '/bar.png', // התמונה המגניבה שלה (Memoji)
+    id: 'pm', // המזהה של מנהל פרויקטים
+    name: 'מנהל פרויקטים', // השם שיוצג
+    role: 'פיקוח וביצוע בשטח', // התפקיד שלו
+    icon: <HardHat className="w-8 h-8 text-brand" />, // האייקון של מנהל הפרויקטים
+    avatar: '/pm.png', // התמונה המגניבה שלו (Memoji)
     bg: 'bg-orange-50' // צבע רקע עדין
   },
   {
-    id: 'tomer', // המזהה של תומר
-    name: 'תומר קנובלר', // השם שיוצג
-    role: 'מפתח מספר 2', // התפקיד שלו
-    icon: <Code className="w-8 h-8 text-brand" />, // האייקון של המפתח
-    avatar: '/tomer.png', // התמונה המגניבה שלו (Memoji)
+    id: 'operator', // המזהה של מפעיל מערכת
+    name: 'מפעיל מערכת', // השם שיוצג
+    role: 'ניהול ותמיכה טכנית', // התפקיד שלו
+    icon: <Code className="w-8 h-8 text-brand" />, // האייקון של מפעיל המערכת
+    avatar: '/operator.png', // התמונה המגניבה שלו (Memoji)
     bg: 'bg-indigo-50' // צבע רקע עדין
   },
   {
