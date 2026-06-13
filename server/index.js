@@ -295,8 +295,15 @@ app.post('/api/tenders/:id/proposal', async (req, res) => {
   console.log(`🤖 Starting proposal generation synchronously for tender-${req.params.id}...`);
   try {
     const { proposal, boq_json } = await generateProposal(path.join(UPLOADS_DIR, tender.filename), req.params.id);
-    db.prepare('UPDATE tenders SET proposal = ?, boq_json = ?, status = ? WHERE id = ?').run(proposal, boq_json, 'מוכן', req.params.id);
-    console.log(`✅ Proposal generation complete for tender-${req.params.id}`);
+    
+    // Update tender record (keep status as 'הועבר לפרויקט' if it was already converted, or change to 'מוכן')
+    const nextStatus = tender.status === 'הועבר לפרויקט' ? 'הועבר לפרויקט' : 'מוכן';
+    db.prepare('UPDATE tenders SET proposal = ?, boq_json = ?, status = ? WHERE id = ?').run(proposal, boq_json, nextStatus, req.params.id);
+    
+    // Also save the proposal in the converted project if it exists!
+    db.prepare('UPDATE projects SET proposal = ?, boq_json = ? WHERE tender_id = ?').run(proposal, boq_json, req.params.id);
+    
+    console.log(`✅ Proposal generation complete for tender-${req.params.id} (updated tender and project if exists)`);
     
     // גיבוי מיידי לענן של בסיס הנתונים עם הצעת המחיר שנוצרה
     await db.backupToCloud().catch(err => console.error('GCS backup failed after proposal:', err.message));
@@ -408,7 +415,15 @@ app.post('/api/tenders/:id/convert-to-project', async (req, res) => {
 app.post('/api/tenders/:id/reset-proposal', (req, res) => {
   const tid = Number(req.params.id);
   try {
-    db.prepare("UPDATE tenders SET proposal = NULL, status = 'נותח' WHERE id = ?").run(tid);
+    const tender = db.prepare('SELECT * FROM tenders WHERE id = ?').get(tid);
+    if (!tender) return res.status(404).json({ error: 'Tender not found' });
+    
+    const nextStatus = tender.status === 'הועבר לפרויקט' ? 'הועבר לפרויקט' : 'נותח';
+    db.prepare("UPDATE tenders SET proposal = NULL, status = ? WHERE id = ?").run(nextStatus, tid);
+    
+    // Also clear proposal in the converted project if it exists!
+    db.prepare("UPDATE projects SET proposal = NULL WHERE tender_id = ?").run(tid);
+    
     res.json({ success: true });
   } catch (err) {
     console.error('Failed to reset proposal:', err);

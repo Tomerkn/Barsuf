@@ -541,7 +541,7 @@ export default function Tenders() {
                   )}
 
                   {/* כפתור הפקת הצעה - מופיע רק אם המכרז כבר נותח אבל עדיין אין הצעה */}
-                  {!selectedTender.proposal && selectedTender.status === 'נותח' && (
+                  {!selectedTender.proposal && (selectedTender.status === 'נותח' || selectedTender.status === 'הועבר לפרויקט') && (
                     <button 
                       onClick={() => generateProposal(selectedTender.id)}
                       disabled={generating}
@@ -717,7 +717,7 @@ export default function Tenders() {
                       initialBoqJson={selectedTender.boq_json} 
                     />
                     {/* CTA להפקת הצעה מלאה אם עוד לא הופקה */}
-                    {!selectedTender.proposal && selectedTender.status === 'נותח' && (
+                    {!selectedTender.proposal && (selectedTender.status === 'נותח' || selectedTender.status === 'הועבר לפרויקט') && (
                       <div className="mt-4 flex justify-center">
                         <button
                           onClick={() => generateProposal(selectedTender.id)}
