@@ -235,6 +235,9 @@ app.post('/api/tenders/:id/proposal', async (req, res) => {
     const { proposal, boq_json } = await generateProposal(path.join(UPLOADS_DIR, tender.filename), req.params.id);
     db.prepare('UPDATE tenders SET proposal = ?, boq_json = ?, status = ? WHERE id = ?').run(proposal, boq_json, 'מוכן', req.params.id);
     console.log(`✅ Proposal generation complete for tender-${req.params.id}`);
+    
+    // גיבוי מיידי לענן של בסיס הנתונים עם הצעת המחיר שנוצרה
+    await db.backupToCloud().catch(err => console.error('GCS backup failed after proposal:', err.message));
   } catch (e) {
     console.error(`❌ Proposal generation failed for tender-${req.params.id}:`, e);
     db.prepare('UPDATE tenders SET status = ? WHERE id = ?').run('שגיאה', req.params.id);
