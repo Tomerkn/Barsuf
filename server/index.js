@@ -1516,6 +1516,88 @@ app.post('/api/projects/:id/monday-embed', async (req, res) => {
   }
 });
 
+app.post('/api/monday/webhook', async (req, res) => {
+  if (req.body.challenge) {
+    return res.json({ challenge: req.body.challenge });
+  }
+
+  const event = req.body.event;
+  if (!event || !event.pulseId || !event.boardId) {
+    return res.status(200).send('No event data');
+  }
+
+  try {
+    const boardId = event.boardId.toString();
+    const pulseId = event.pulseId.toString();
+
+    const project = db.prepare('SELECT id, monday_token FROM projects WHERE monday_board_id = ?').get(boardId);
+    if (!project) {
+      return res.status(200).send('Board not linked to any project');
+    }
+
+    const query = `query {
+      items (ids: [${pulseId}]) {
+        name
+        column_values {
+          id
+          text
+          value
+        }
+      }
+    }`;
+
+    const mondayRes = await fetch('https://api.monday.com/v2', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': project.monday_token,
+        'API-Version': '2024-01'
+      },
+      body: JSON.stringify({ query })
+    });
+    const mondayData = await mondayRes.json();
+    const item = mondayData?.data?.items?.[0];
+
+    if (item) {
+      let progress = 0;
+      let startDate = new Date().toISOString().split('T')[0];
+      let endDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+      for (const col of item.column_values) {
+        try {
+          if (col.id === 'timeline' || col.id.includes('timeline') || col.id.includes('time') || col.id.includes('range')) {
+            const val = JSON.parse(col.value || '{}');
+            if (val.from) startDate = val.from;
+            if (val.to) endDate = val.to;
+          } else if (col.id === 'numbers' || col.id.includes('progress') || col.id.includes('percent')) {
+            progress = Math.min(100, Math.max(0, parseInt(col.text || '0')));
+          } else if (col.id === 'status' || col.id.includes('status') || col.id.includes('color')) {
+            if (col.text === 'Done' || col.text === 'הושלם' || col.text === 'סיים') progress = 100;
+            else if (col.text === 'Working on it' || col.text === 'בעבודה') progress = 50;
+          }
+        } catch (e) {}
+      }
+
+      const existingTask = db.prepare('SELECT id FROM tasks WHERE monday_id = ? AND project_id = ?').get(pulseId, project.id);
+      if (existingTask) {
+        db.prepare('UPDATE tasks SET progress = ?, start_date = ?, end_date = ? WHERE id = ?')
+          .run(progress, startDate, endDate, existingTask.id);
+        console.log(`✅ Webhook: Synced task ${existingTask.id} from Monday (Progress: ${progress}%)`);
+      } else {
+        db.prepare('INSERT INTO tasks (project_id, name, progress, start_date, end_date, monday_id) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(project.id, item.name, progress, startDate, endDate, pulseId);
+        console.log(`✅ Webhook: Created new task locally from Monday (Item: ${item.name})`);
+      }
+      await db.backupToCloud();
+    }
+
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('Monday webhook sync failed:', err);
+    res.status(200).send('Error but OK');
+  }
+});
+
 app.post('/api/projects/:id/sync-monday', async (req, res) => {
   const { token, boardId } = req.body;
   if (!token || !boardId) return res.status(400).json({ error: 'Missing token or boardId' });
