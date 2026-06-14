@@ -475,8 +475,8 @@ app.post('/api/global-knowledge', upload.single('file'), async (req, res) => {
   }
 });
 
-app.get('/api/expenses', (req, res) => {
-  const projectId = req.query.projectId || req.query.project_id;
+app.get('/api/expenses', (req, res) => { // קבלת כל ההוצאות מהמערכת
+  const projectId = req.query.projectId || req.query.project_id; // בודקים אם המשתמש סינן לפי פרויקט מסוים
   let query = `
     SELECT e.*, 
            c.name as contractor_name, 
@@ -486,15 +486,15 @@ app.get('/api/expenses', (req, res) => {
     LEFT JOIN contractors c ON e.contractor_id = c.id
     LEFT JOIN budgets b ON e.budget_id = b.id
     LEFT JOIN projects p ON e.project_id = p.id
-  `;
-  let expenses;
-  if (projectId) {
-    query += ' WHERE e.project_id = ?';
-    expenses = db.prepare(query).all(projectId);
-  } else {
-    expenses = db.prepare(query).all();
+  `; // שאילתה המשלבת מידע על קבלנים, סעיפי תקציב ושמות פרויקטים
+  let expenses; // משתנה לשמירת התוצאות
+  if (projectId) { // אם התבקש סינון לפי פרויקט
+    query += ' WHERE e.project_id = ?'; // מוסיפים תנאי סינון לשאילתה
+    expenses = db.prepare(query).all(projectId); // מריצים את השאילתה עם מזהה הפרויקט
+  } else { // אם לא התבקש סינון
+    expenses = db.prepare(query).all(); // מביאים את כל ההוצאות ללא הגבלה
   }
-  res.json(expenses);
+  res.json(expenses); // מחזירים את התוצאות כקובץ JSON לפרונט
 });
 app.get('/api/incomes', (req, res) => res.json(db.prepare('SELECT * FROM incomes').all()));
 app.get('/api/contractors', (req, res) => res.json(db.prepare('SELECT * FROM contractors').all()));
@@ -515,11 +515,108 @@ app.post('/api/incomes', (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
-app.post('/api/contractors', (req, res) => {
+app.post('/api/contractors', async (req, res) => {
   const { name, specialization, phone, email } = req.body;
   const insert = db.prepare('INSERT INTO contractors (name, specialization, phone, email) VALUES (?, ?, ?, ?)');
   const info = insert.run(name, specialization, phone, email);
-  res.status(201).json({ id: info.lastInsertRowid });
+  const newId = info.lastInsertRowid;
+  
+  const createdContractor = { id: newId, name, specialization, phone, email };
+  syncContractorToMonday(createdContractor, 'create');
+  
+  res.status(201).json({ id: newId });
+});
+
+app.put('/api/contractors/:id', async (req, res) => {
+  const { name, specialization, phone, email } = req.body;
+  const cid = Number(req.params.id);
+  db.prepare('UPDATE contractors SET name = ?, specialization = ?, phone = ?, email = ? WHERE id = ?')
+    .run(name, specialization, phone, email, cid);
+    
+  const updatedContractor = db.prepare('SELECT * FROM contractors WHERE id = ?').get(cid);
+  if (updatedContractor) {
+    syncContractorToMonday(updatedContractor, 'update');
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/settings/monday-contractors', (req, res) => {
+  const token = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_token'").get()?.value || '';
+  const boardId = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_board_id'").get()?.value || '';
+  const autoSync = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_auto_sync'").get()?.value || '1';
+  res.json({ token, boardId, autoSync: autoSync === '1' });
+});
+
+app.post('/api/settings/monday-contractors', (req, res) => {
+  const { token, boardId, autoSync } = req.body;
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('monday_contractors_token', ?)")
+    .run(token || '');
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('monday_contractors_board_id', ?)")
+    .run(boardId || '');
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('monday_contractors_auto_sync', ?)")
+    .run(autoSync ? '1' : '0');
+  res.json({ success: true });
+});
+
+app.post('/api/contractors/export-monday', async (req, res) => {
+  try {
+    const token = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_token'").get()?.value || '';
+    const boardId = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_board_id'").get()?.value || '';
+    if (!token || !boardId) return res.status(400).json({ error: 'Missing token or boardId' });
+
+    const contractors = db.prepare('SELECT * FROM contractors').all();
+    let exported = 0;
+
+    const getGroupId = (spec = '') => {
+      const s = spec.toLowerCase();
+      if (s.includes('פיתוח') || s.includes('חוץ') || s.includes('גינון') || s.includes('סלילה')) return 'group_mm44qxqq';
+      if (s.includes('חשמל') || s.includes('אינסטלציה') || s.includes('תשתיות') || s.includes('מים') || s.includes('מיזוג') || s.includes('קירור') || s.includes('כיבוי')) return 'group_mm44hzkm';
+      if (s.includes('גמר') || s.includes('צבע') || s.includes('ריצוף') || s.includes('גבס') || s.includes('טיח') || s.includes('אלומיניום') || s.includes('נגרות')) return 'group_mm441brs';
+      if (s.includes('שלד') || s.includes('בנייה') || s.includes('בטון') || s.includes('קונסטרוקציה') || s.includes('קידוח') || s.includes('חפירה') || s.includes('עפר')) return 'group_mm44cs14';
+      return 'topics';
+    };
+
+    for (const contractor of contractors) {
+      const groupId = getGroupId(contractor.specialization);
+      const dateStr = new Date().toISOString().split('T')[0];
+      const notesStr = `טלפון: ${contractor.phone || ''}, דוא"ל: ${contractor.email || ''}`;
+
+      const colValues = JSON.stringify({
+        date_mm44879k: dateStr,
+        text_mm44tthd: contractor.specialization || '',
+        text_mm44k583: 'יצוא יזום בארסוף',
+        text_mm44vndq: notesStr
+      });
+
+      const query = `mutation {
+        create_item (
+          board_id: ${boardId},
+          group_id: "${groupId}",
+          item_name: "${contractor.name.replace(/"/g, '\\"')}",
+          column_values: ${JSON.stringify(colValues)}
+        ) {
+          id
+        }
+      }`;
+
+      const itemRes = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query })
+      });
+      const itemData = await itemRes.json();
+      if (itemData.data?.create_item?.id) {
+        const mondayId = itemData.data.create_item.id;
+        db.prepare('UPDATE contractors SET monday_id = ? WHERE id = ?').run(mondayId, contractor.id);
+        exported++;
+      }
+    }
+
+    res.json({ success: true, exported });
+  } catch (err) {
+    console.error('Export contractors failed:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/orders', (req, res) => {
@@ -568,15 +665,58 @@ app.put('/api/:resourceType/:id', (req, res) => {
   res.json({ success: true, warning: 'Generic update placeholder' });
 });
 
-app.delete('/api/:resourceType/:id', (req, res) => {
+app.delete('/api/:resourceType/:id', async (req, res) => {
   const { resourceType, id } = req.params;
   const pid = Number(id);
   const allowedTables = ['projects', 'expenses', 'incomes', 'budgets', 'orders', 'contractors', 'tenders'];
   if (allowedTables.includes(resourceType)) {
+    if (resourceType === 'contractors') {
+      const contractor = db.prepare('SELECT * FROM contractors WHERE id = ?').get(pid);
+      if (contractor) {
+        syncContractorToMonday(contractor, 'delete', { mondayId: contractor.monday_id });
+      }
+    }
     db.prepare(`DELETE FROM ${resourceType} WHERE id = ?`).run(pid);
     res.json({ success: true });
   } else {
     res.status(400).json({ error: 'Invalid resource type' });
+  }
+});
+
+app.get('/api/notifications', (req, res) => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const tasks = db.prepare(`
+      SELECT t.*, p.name as project_name 
+      FROM tasks t 
+      JOIN projects p ON t.project_id = p.id
+    `).all();
+
+    const alerts = [];
+    tasks.forEach(task => {
+      if (task.progress < 100 && task.end_date && task.end_date < todayStr) {
+        alerts.push({
+          id: `overdue-${task.id}`,
+          type: 'danger',
+          title: 'משימה בעיכוב ביצוע',
+          message: `המשימה "${task.name}" בפרויקט "${task.project_name}" הייתה אמורה להסתיים ב-${new Date(task.end_date).toLocaleDateString('he-IL')}, אך התקדמותה היא ${task.progress}% בלבד.`,
+          projectId: task.project_id
+        });
+      } else if (task.progress === 0 && task.start_date && task.start_date < todayStr) {
+        alerts.push({
+          id: `start-delay-${task.id}`,
+          type: 'warning',
+          title: 'עיכוב בתחילת עבודה',
+          message: `המשימה "${task.name}" בפרויקט "${task.project_name}" תוכננה להתחיל ב-${new Date(task.start_date).toLocaleDateString('he-IL')}, אך טרם החלה.`,
+          projectId: task.project_id
+        });
+      }
+    });
+
+    res.json(alerts);
+  } catch (e) {
+    console.error('Failed to calculate notifications:', e);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 });
 
@@ -619,37 +759,376 @@ app.put('/api/warranty-tickets/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// פונקציית עזר לסנכרון קבלנים מול Monday.com בזמן אמת
+async function syncContractorToMonday(contractor, action, extra = {}) {
+  try {
+    const tokenRow = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_token'").get();
+    const boardIdRow = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_board_id'").get();
+    const autoSyncRow = db.prepare("SELECT value FROM settings WHERE key = 'monday_contractors_auto_sync'").get();
+    
+    if (!tokenRow || !boardIdRow || !autoSyncRow || autoSyncRow.value !== '1') return;
+    
+    const token = tokenRow.value;
+    const boardId = boardIdRow.value;
+    
+    const getGroupId = (spec = '') => {
+      const s = spec.toLowerCase();
+      if (s.includes('פיתוח') || s.includes('חוץ') || s.includes('גינון') || s.includes('סלילה')) return 'group_mm44qxqq';
+      if (s.includes('חשמל') || s.includes('אינסטלציה') || s.includes('תשתיות') || s.includes('מים') || s.includes('מיזוג') || s.includes('קירור') || s.includes('כיבוי')) return 'group_mm44hzkm';
+      if (s.includes('גמר') || s.includes('צבע') || s.includes('ריצוף') || s.includes('גבס') || s.includes('טיח') || s.includes('אלומיניום') || s.includes('נגרות')) return 'group_mm441brs';
+      if (s.includes('שלד') || s.includes('בנייה') || s.includes('בטון') || s.includes('קונסטרוקציה') || s.includes('קידוח') || s.includes('חפירה') || s.includes('עפר')) return 'group_mm44cs14';
+      return 'topics';
+    };
+    
+    const groupId = getGroupId(contractor.specialization);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const notesStr = `טלפון: ${contractor.phone || ''}, דוא"ל: ${contractor.email || ''}`;
+    
+    if (action === 'create') {
+      const colValues = JSON.stringify({
+        date_mm44879k: dateStr,
+        text_mm44tthd: contractor.specialization || '',
+        text_mm44k583: 'מערכת בארסוף',
+        text_mm44vndq: notesStr
+      });
+      
+      const query = `mutation {
+        create_item (
+          board_id: ${boardId},
+          group_id: "${groupId}",
+          item_name: "${contractor.name.replace(/"/g, '\\"')}",
+          column_values: ${JSON.stringify(colValues)}
+        ) {
+          id
+        }
+      }`;
+      
+      const res = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json();
+      if (data.data?.create_item?.id) {
+        const mondayId = data.data.create_item.id;
+        db.prepare('UPDATE contractors SET monday_id = ? WHERE id = ?').run(mondayId, contractor.id);
+      }
+    } else if (action === 'update') {
+      if (!contractor.monday_id) return;
+      
+      const colValues = JSON.stringify({
+        date_mm44879k: dateStr,
+        text_mm44tthd: contractor.specialization || '',
+        text_mm44k583: 'מערכת בארסוף',
+        text_mm44vndq: notesStr
+      });
+      
+      const query = `mutation {
+        change_multiple_column_values (
+          board_id: ${boardId},
+          item_id: ${contractor.monday_id},
+          column_values: ${JSON.stringify(colValues)}
+        ) {
+          id
+        }
+      }`;
+      
+      await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query })
+      });
+
+      const updateMsg = `פרטי קבלן עודכנו בבארסוף: התמחות ב-${contractor.specialization || ''}, טלפון: ${contractor.phone || ''}, מייל: ${contractor.email || ''}`;
+      const updateQuery = `mutation {
+        create_update (item_id: ${contractor.monday_id}, body: "${updateMsg.replace(/"/g, '\\"')}") {
+          id
+        }
+      }`;
+      await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query: updateQuery })
+      });
+    } else if (action === 'delete') {
+      const mondayId = extra.mondayId || contractor.monday_id;
+      if (!mondayId) return;
+      
+      const query = `mutation {
+        delete_item (item_id: ${mondayId}) {
+          id
+        }
+      }`;
+      
+      await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query })
+      });
+    }
+  } catch (err) {
+    console.error('Real-time Monday contractor sync failed:', err.message);
+  }
+}
+
+// פונקציית עזר לסנכרון משימה בודדת מול Monday.com בזמן אמת
+async function syncTaskToMonday(projectId, task, action, extra = {}) { // הגדרת הפונקציה לקריאות רקע
+  try { // תפיסת שגיאות
+    const project = db.prepare('SELECT monday_token, monday_board_id, monday_auto_sync FROM projects WHERE id = ?').get(projectId); // שליפת הגדרות מאנדיי מהפרויקט
+    if (!project || !project.monday_token || !project.monday_board_id || !project.monday_auto_sync) return; // בדיקה אם מופעל סנכרון אוטומטי ואם יש הגדרות
+    
+    const token = project.monday_token; // מפתח הגישה של מאנדיי
+    const boardId = project.monday_board_id; // מזהה הלוח
+
+    if (action === 'create') { // מקרה של יצירת משימה חדשה
+      const query = `mutation {
+        create_item (board_id: ${boardId}, item_name: "${task.name.replace(/"/g, '\\"')}") {
+          id
+        }
+      }`; // שאילתת GraphQL ליצירת פריט
+      const res = await fetch('https://api.monday.com/v2', { // פנייה ל-API
+        method: 'POST', // בשיטת POST
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' }, // כותרות מתאימות
+        body: JSON.stringify({ query }) // שליחת השאילתה
+      });
+      const data = await res.json(); // פענוח התשובה
+      if (data.data?.create_item?.id) { // אם הפריט נוצר בהצלחה
+        const mondayId = data.data.create_item.id; // שמירת המזהה החדש
+        db.prepare('UPDATE tasks SET monday_id = ? WHERE id = ?').run(mondayId, task.id); // עדכון מזהה מאנדיי בטבלה המקומית
+        // עדכון תאריכים והתקדמות עבור המשימה שנוצרה
+        await syncTaskToMonday(projectId, { ...task, monday_id: mondayId }, 'update'); // הרצת עדכון עמודות
+      }
+    } else if (action === 'update') { // מקרה של עדכון משימה קיימת
+      if (!task.monday_id) return; // אם אין מזהה מאנדיי למשימה, אין מה לעדכן
+      
+      // מיפוי שלבי התקדמות לסטטוסים במאנדיי
+      let statusText = 'Not Started'; // ברירת מחדל לא התחיל
+      if (task.progress === 100) statusText = 'Done'; // אם 100% מסמנים כבוצע
+      else if (task.progress > 0) statusText = 'Working on it'; // אם בטווח הביניים מסמנים כבעבודה
+      
+      const start = task.start_date || new Date().toISOString().split('T')[0]; // תאריך התחלה תקין
+      const end = task.end_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]; // תאריך סיום תקין
+      
+      const colValues = JSON.stringify({ // בניית אובייקט ערכי העמודות
+        status: { label: statusText }, // סטטוס משימה
+        numbers: task.progress, // אחוז התקדמות
+        timeline: { from: start, to: end } // טווח תאריכים
+      });
+      
+      const query = `mutation {
+        change_multiple_column_values (
+          board_id: ${boardId},
+          item_id: ${task.monday_id},
+          column_values: ${JSON.stringify(colValues)}
+        ) {
+          id
+        }
+      }`; // שאילתת עדכון עמודות במאנדיי
+      await fetch('https://api.monday.com/v2', { // ביצוע הפנייה
+        method: 'POST', // שליחת POST
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' }, // כותרות
+        body: JSON.stringify({ query }) // שליחת השאילתה
+      });
+
+      const updateMsg = `המשימה עודכנה בבארסוף: התקדמות ל-${task.progress}%, תאריכים: ${start} עד ${end}`;
+      const updateQuery = `mutation {
+        create_update (item_id: ${task.monday_id}, body: "${updateMsg.replace(/"/g, '\\"')}") {
+          id
+        }
+      }`;
+      await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query: updateQuery })
+      });
+    } else if (action === 'delete') { // מקרה של מחיקת משימה
+      const mondayId = extra.mondayId || task.monday_id; // קבלת מזהה מאנדיי למחיקה
+      if (!mondayId) return; // יציאה אם אין מזהה
+      
+      const query = `mutation {
+        delete_item (item_id: ${mondayId}) {
+          id
+        }
+      }`; // שאילתת מחיקה ממאנדיי
+      await fetch('https://api.monday.com/v2', { // ביצוע הקריאה
+        method: 'POST', // שיטת POST
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' }, // כותרות
+        body: JSON.stringify({ query }) // שליחה
+      });
+    }
+  } catch (err) { // תפיסת כשלים
+    console.error('Real-time Monday sync failed:', err.message); // תיעוד הכשל למניעת קריסות
+  }
+}
+
 // ===== Tasks API (Gantt) =====
 app.get('/api/projects/:id/tasks', (req, res) => {
   const tasks = db.prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY start_date ASC').all(req.params.id);
   res.json(tasks);
 });
 
-app.post('/api/projects/:id/tasks', (req, res) => {
-  const { name, start_date, end_date, progress } = req.body;
-  const stmt = db.prepare('INSERT INTO tasks (project_id, name, start_date, end_date, progress) VALUES (?, ?, ?, ?, ?)');
-  const result = stmt.run(req.params.id, name, start_date, end_date, progress || 0);
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/projects/:id/tasks', async (req, res) => { // הגדרת פונקציה אסינכרונית לביצוע סנכרון ברקע
+  const { name, start_date, end_date, progress } = req.body; // חילוץ הנתונים מגוף הבקשה
+  const stmt = db.prepare('INSERT INTO tasks (project_id, name, start_date, end_date, progress) VALUES (?, ?, ?, ?, ?)'); // הכנת שאילתת ההוספה
+  const result = stmt.run(req.params.id, name, start_date, end_date, progress || 0); // הרצת ההוספה המקומית במסד
+  const newTaskId = result.lastInsertRowid; // מזהה השורה שנוצרה
+  
+  const createdTask = { id: newTaskId, name, start_date, end_date, progress }; // בניית אובייקט המשימה שנוצרה
+  syncTaskToMonday(req.params.id, createdTask, 'create'); // סנכרון המשימה החדשה ל-Monday ברקע ללא המתנה לעיכוב המשתמש
+  
+  res.json({ id: newTaskId }); // החזרת מזהה המשימה החדשה
 });
 
-app.put('/api/tasks/:id', (req, res) => {
-  const { name, start_date, end_date, progress } = req.body;
-  db.prepare('UPDATE tasks SET name = ?, start_date = ?, end_date = ?, progress = ? WHERE id = ?')
-    .run(name, start_date, end_date, progress || 0, req.params.id);
-  res.json({ success: true });
+app.put('/api/tasks/:id', async (req, res) => { // פונקציה אסינכרונית לעדכון משימה וסנכרונה
+  const { name, start_date, end_date, progress } = req.body; // חילוץ נתונים מעודכנים
+  db.prepare('UPDATE tasks SET name = ?, start_date = ?, end_date = ?, progress = ? WHERE id = ?') // הכנת שאילתת העדכון
+    .run(name, start_date, end_date, progress || 0, req.params.id); // הרצת העדכון המקומי במסד הנתונים
+  
+  const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id); // שליפת המשימה המעודכנת מהמסד
+  if (updatedTask) { // אם המשימה נמצאה
+    syncTaskToMonday(updatedTask.project_id, updatedTask, 'update'); // עדכון המשימה במאנדיי ברקע
+  }
+  res.json({ success: true }); // החזרת תשובת הצלחה
 });
 
-app.delete('/api/tasks/:id', (req, res) => {
-  db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+app.delete('/api/tasks/:id', async (req, res) => { // מחיקת משימה וסנכרון מחיקה ממאנדיי
+  const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id); // שליפת המשימה לפני מחיקתה מהמסד המקומי
+  if (task) { // אם מצאנו את המשימה
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id); // ביצוע המחיקה המקומית
+    syncTaskToMonday(task.project_id, task, 'delete', { mondayId: task.monday_id }); // שליחת בקשת מחיקה למאנדיי ברקע
+  } else { // אם לא נמצאה המשימה
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id); // מריצים ליתר ביטחון
+  }
+  res.json({ success: true }); // החזרת אישור הצלחה
 });
 
-// ===== Monday.com Sync =====
+// ===== Monday.com Sync & Provisioning =====
+app.post('/api/projects/:id/monday-credentials', (req, res) => { // שמירת הגדרות החיבור בשרת
+  const { token, boardId, autoSync } = req.body; // חילוץ נתונים
+  db.prepare('UPDATE projects SET monday_token = ?, monday_board_id = ?, monday_auto_sync = ? WHERE id = ?') // שאילתת עדכון
+    .run(token || null, boardId || null, autoSync ? 1 : 0, req.params.id); // שמירה במסד
+  res.json({ success: true }); // החזרת אישור הצלחה
+});
+
+app.post('/api/projects/:id/export-monday', async (req, res) => { // ייצוא כל המשימות ללוח חדש ב-Monday.com
+  const { token } = req.body; // חילוץ הטוקן מהגוף
+  if (!token) return res.status(400).json({ error: 'Missing token' }); // שגיאה אם חסר טוקן
+  
+  try { // תפיסת כשלים
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id); // שליפת הפרויקט המקומי
+    if (!project) return res.status(404).json({ error: 'Project not found' }); // שגיאה אם לא נמצא
+    
+    // 1. יצירת לוח חדש במאנדיי
+    const createBoardQuery = `mutation {
+      create_board (board_name: "בארסוף - ${project.name.replace(/"/g, '\\"')}", board_kind: public) {
+        id
+      }
+    }`; // שאילתה ליצירת הלוח
+    const boardRes = await fetch('https://api.monday.com/v2', { // פנייה ל-Monday
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+      body: JSON.stringify({ query: createBoardQuery })
+    });
+    const boardData = await boardRes.json(); // פענוח התשובה
+    if (boardData.errors) throw new Error('Monday board creation failed: ' + boardData.errors[0]?.message); // שגיאה אם נכשל
+    
+    const boardId = boardData.data.create_board.id; // מזהה הלוח החדש שנוצר
+    
+    // 2. יצירת עמודות התקדמות (numbers) ולוח זמנים (timeline) בלוח שנוצר
+    const createTimelineColQuery = `mutation {
+      create_column (board_id: ${boardId}, title: "לוח זמנים", column_type: timeline) {
+        id
+      }
+    }`; // עמודת תאריכים
+    const timelineRes = await fetch('https://api.monday.com/v2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+      body: JSON.stringify({ query: createTimelineColQuery })
+    });
+    
+    const createProgressColQuery = `mutation {
+      create_column (board_id: ${boardId}, title: "התקדמות %", column_type: numbers) {
+        id
+      }
+    }`; // עמודת אחוז התקדמות
+    const progressRes = await fetch('https://api.monday.com/v2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+      body: JSON.stringify({ query: createProgressColQuery })
+    });
+    
+    // 3. עדכון מסד הנתונים עם מזהה הלוח והטוקן
+    db.prepare('UPDATE projects SET monday_board_id = ?, monday_token = ?, monday_auto_sync = 1 WHERE id = ?')
+      .run(boardId, token, req.params.id);
+      
+    // 4. ייצוא כל המשימות הקיימות של הפרויקט ללוח החדש
+    const tasks = db.prepare('SELECT * FROM tasks WHERE project_id = ?').all(req.params.id); // שליפת כל המשימות
+    let exported = 0; // מונה משימות שיוצאו בהצלחה
+    
+    for (const task of tasks) { // מעבר על המשימות
+      const createItemQuery = `mutation {
+        create_item (board_id: ${boardId}, item_name: "${task.name.replace(/"/g, '\\"')}") {
+          id
+        }
+      }`; // יצירת הפריט במאנדיי
+      const itemRes = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query: createItemQuery })
+      });
+      const itemData = await itemRes.json(); // פענוח מזהה הפריט
+      
+      if (itemData.data?.create_item?.id) { // אם נוצר פריט תקין
+        const mondayItemId = itemData.data.create_item.id; // קבלת המזהה
+        db.prepare('UPDATE tasks SET monday_id = ? WHERE id = ?').run(mondayItemId, task.id); // שמירה במסד הנתונים
+        
+        // עדכון ערכי העמודות עבור המשימה שנוצרה (תאריכים והתקדמות)
+        let statusText = 'Not Started'; // ברירת מחדל
+        if (task.progress === 100) statusText = 'Done';
+        else if (task.progress > 0) statusText = 'Working on it';
+        
+        const start = task.start_date || new Date().toISOString().split('T')[0];
+        const end = task.end_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+        
+        const colValues = JSON.stringify({
+          status: { label: statusText },
+          numbers: task.progress,
+          timeline: { from: start, to: end }
+        });
+        
+        const updateColsQuery = `mutation {
+          change_multiple_column_values (
+            board_id: ${boardId},
+            item_id: ${mondayItemId},
+            column_values: ${JSON.stringify(colValues)}
+          ) {
+            id
+          }
+        }`; // עדכון עמודות במאנדיי
+        await fetch('https://api.monday.com/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+          body: JSON.stringify({ query: updateColsQuery })
+        });
+        exported++; // העלאת המונה
+      } // סיום התנאי
+    } // סיום הלולאה
+    
+    res.json({ success: true, boardId, exported }); // החזרת תוצאת ההצלחה עם המזהה והכמות
+  } catch (err) { // תפיסת כשלים
+    console.error('Export to Monday failed:', err); // הדפסת כשל ללוג
+    res.status(500).json({ error: err.message }); // החזרת שגיאה לפרונט
+  }
+});
+
 app.post('/api/projects/:id/sync-monday', async (req, res) => {
   const { token, boardId } = req.body;
   if (!token || !boardId) return res.status(400).json({ error: 'Missing token or boardId' });
 
   try {
+    // שמירת ההגדרות החדשות בפרויקט
+    db.prepare('UPDATE projects SET monday_token = ?, monday_board_id = ? WHERE id = ?').run(token, boardId, req.params.id);
+
     // שליפת פריטים מה-Monday API דרך GraphQL
     const query = `query {
       boards(ids: [${boardId}]) {

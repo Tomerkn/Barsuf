@@ -12,6 +12,7 @@ import { Reports } from './pages/Reports'; // מביאים את מסך הדוח�
 import { Overview } from './pages/Overview'; // מביאים את מסך הניהול הכללי
 import { ProjectGanttPage } from './pages/ProjectGanttPage'; // מביאים את מסך לוחות הזמנים (גאנט)
 import { ProjectMediaPage } from './pages/ProjectMediaPage'; // מביאים את מסך התמונות והמסמכים
+import { MondayIntegration } from './pages/MondayIntegration'; // מביאים את מסך האינטגרציה והדשבורד של Monday.com
 import { ProjectIncomes } from './pages/ProjectIncomes'; // מביאים את מסך ההכנסות
 import { DailyLogs } from './pages/DailyLogs'; // מביאים את מסך יומן העבודה
 import { Warranty } from './pages/Warranty'; // מביאים את מסך שנת הבדק
@@ -81,6 +82,7 @@ function AppContent() { // הפונקציה הראשית שמחליטה מה ל�
             <Route path="/projects/:projectId/contractors" element={<Contractors />} /> {/* קבלנים של פרויקט */}
             <Route path="/projects/:projectId/orders" element={<Orders />} /> {/* הזמנות של פרויקט */}
             <Route path="/projects/:projectId/media" element={<ProjectMediaPage />} /> {/* תמונות של פרויקט */}
+            <Route path="/projects/:projectId/monday" element={<MondayIntegration />} /> {/* מסך סנכרון ודשבורד משימות Monday.com */}
             <Route path="/projects/:projectId/reports" element={<Reports />} /> {/* דוחות של פרויקט */}
             <Route path="*" element={<div className="p-8 text-center text-text-muted">עמוד בבנייה...</div>} /> {/* אם הגענו לדף שלא קיים */}
           </Routes>

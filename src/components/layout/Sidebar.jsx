@@ -15,7 +15,8 @@ import {
   Settings,
   ClipboardCheck,
   ShieldCheck,
-  FileSearch
+  FileSearch,
+  RefreshCw // ייבוא אייקון רענון / סנכרון עבור מאנדיי
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { X } from 'lucide-react';
@@ -36,6 +37,7 @@ const getProjectNavItems = (projectId) => [
   { name: 'הזמנות רכש', path: `/projects/${projectId}/orders`, icon: ClipboardList },
   { name: 'שנת בדק', path: `/projects/${projectId}/warranty`, icon: ShieldCheck },
   { name: 'לוח זמנים (Gantt)', path: `/projects/${projectId}/gantt`, icon: Calendar },
+  { name: 'אינטגרציית Monday', path: `/projects/${projectId}/monday`, icon: RefreshCw }, // קישור לעמוד ניהול וסנכרון מול Monday.com
   { name: 'מסמכים וגלריה', path: `/projects/${projectId}/media`, icon: FolderOpen },
   { name: 'דוחות', path: `/projects/${projectId}/reports`, icon: BarChart3 },
 ];

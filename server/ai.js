@@ -344,20 +344,20 @@ ${truncatedText}
       const result = await generateContentWithFallback(genAI, GEMINI_PRO_CHAIN, fallbackPrompt, 45000);
 
       updateLiveStatus(tenderId, "הצעה מוכנה");
-      const text = result.response.text();
-      let boq_json = null;
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch) {
+      const text = result.response.text(); // חילוץ המלל המלא שנוצר על ידי ג'מיני
+      let boq_json = null; // משתנה לשמירת כתב הכמויות כ-JSON תקין
+      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/); // חיפוש בלוק JSON בתוך התשובה הכתובה
+      if (jsonMatch) { // אם נמצא בלוק JSON מתאים
         try {
-          const parsed = JSON.parse(jsonMatch[1].trim());
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            boq_json = jsonMatch[1].trim();
+          const parsed = JSON.parse(jsonMatch[1].trim()); // ניסיון לפענח את ה-JSON כדי לוודא תקינות סינטקטית
+          if (Array.isArray(parsed) && parsed.length > 0) { // בודקים שזהו מערך לא ריק של פריטים
+            boq_json = jsonMatch[1].trim(); // שומרים את ה-JSON הנקי והתקין
           }
         } catch (e) {
-          console.warn('BoQ JSON validation failed in generateProposal:', e.message);
+          console.warn('BoQ JSON validation failed in generateProposal:', e.message); // התראה ביומן השרת אם ה-JSON פגום
         }
       }
-      return { proposal: text.replace(jsonMatch?.[0] || '', '').trim(), boq_json };
+      return { proposal: text.replace(jsonMatch?.[0] || '', '').trim(), boq_json }; // מחזירים את ההצעה הכתובה (ללא בלוק ה-JSON) ואת ה-JSON התקין בנפרד
     } catch (geminiErr) {
       console.warn("Gemini failed for generateProposal:", geminiErr.message);
       throw new Error(`כל שירותי הבינה המלאכותית של גוגל נכשלו ביצירת ההצעה: ${geminiErr.message}`);

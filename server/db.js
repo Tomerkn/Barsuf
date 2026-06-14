@@ -57,7 +57,10 @@ db.exec(`
     tender_id INTEGER,
     analysis TEXT,
     proposal TEXT,
-    boq_json TEXT
+    boq_json TEXT,
+    monday_board_id TEXT,
+    monday_token TEXT,
+    monday_auto_sync INTEGER DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS budgets (
@@ -163,6 +166,32 @@ try { db.exec(`ALTER TABLE projects ADD COLUMN tender_id INTEGER;`); } catch (e)
 try { db.exec(`ALTER TABLE projects ADD COLUMN analysis TEXT;`); } catch (e) {}
 try { db.exec(`ALTER TABLE projects ADD COLUMN proposal TEXT;`); } catch (e) {}
 try { db.exec(`ALTER TABLE projects ADD COLUMN boq_json TEXT;`); } catch (e) {}
+
+// הוספת עמודות לתמיכה באינטגרציה מתקדמת מול Monday.com (מיגרציה בזמן ריצה)
+try { db.exec(`ALTER TABLE projects ADD COLUMN monday_board_id TEXT;`); } catch (e) {} // עמודה לשמירת מזהה הלוח המסונכרן במאנדיי
+try { db.exec(`ALTER TABLE projects ADD COLUMN monday_token TEXT;`); } catch (e) {} // עמודה לשמירת מפתח הגישה של מאנדיי בשרת
+try { db.exec(`ALTER TABLE projects ADD COLUMN monday_auto_sync INTEGER DEFAULT 1;`); } catch (e) {} // עמודה לסימון האם מופעל סנכרון אוטומטי דו-כיווני (1=כן, 0=לא)
+
+// הוספת טבלת הגדרות כלליות למערכת (למשל סנכרון קבלנים גלובלי)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
+`);
+
+// הוספת עמודת monday_id לטבלת קבלנים
+try { db.exec(`ALTER TABLE contractors ADD COLUMN monday_id TEXT;`); } catch (e) {}
+
+// זריעת הגדרות ראשוניות עבור סנכרון קבלנים ל-Monday.com
+try {
+  const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+  insertSetting.run('monday_contractors_token', 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjY2ODM4MDUyOCwiYWFpIjoxMSwidWlkIjoxMDMzMjkyNzQsImlhZCI6IjIwMjYtMDYtMDhUMTg6MTQ6MDIuMDAwWiIsInBlciI6Im1lOndyaXRlIiwiYWN0aWQiOjM1MDE1MDc4LCJyZ24iOiJldWMxIn0.MwVqTuydRsvQqwg02Gt4vc6yr5SkHwwgBQXP4735wNE');
+  insertSetting.run('monday_contractors_board_id', '5098147406');
+  insertSetting.run('monday_contractors_auto_sync', '1');
+} catch (e) {
+  console.error('Error seeding global settings:', e);
+}
 
 console.log('✅ Database Ready at:', dbPath);
 export default db;

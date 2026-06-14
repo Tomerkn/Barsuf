@@ -200,5 +200,88 @@ export const api = { // יצירת השליח שמדבר עם השרת
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/media`);
     if (!response.ok) throw new Error('נכשל בטעינת קבצי הפרויקט');
     return response.json();
+  },
+  
+  // קבלת משימות לוח זמנים (Gantt) של פרויקט
+  getProjectTasks: async (projectId) => { // פונקציה לקבלת כל המשימות
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/tasks`); // פנייה לשרת לקבלת המשימות של הפרויקט
+    if (!response.ok) throw new Error('נכשל בטעינת משימות הפרויקט'); // בדיקה אם הקריאה נכשלה
+    return response.json(); // החזרת המשימות בפורמט JSON
+  }, // סיום פונקציית קבלת משימות
+  
+  // ביצוע סנכרון משימות ישירות מול Monday.com
+  syncMonday: async (projectId, token, boardId) => { // פונקציה המפעילה את סנכרון השרת מול ה-API של מאנדיי
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/sync-monday`, { // פנייה לשרת לשליחת בקשת הסנכרון
+      method: 'POST', // שליחה בשיטת POST
+      headers: { 'Content-Type': 'application/json' }, // הגדרת סוג המידע כ-JSON
+      body: JSON.stringify({ token, boardId }) // שליחת ה-Token וה-Board ID כחלק מגוף הבקשה
+    }); // המתנה לתגובת השרת
+    if (!response.ok) { // אם הקריאה נכשלה
+      const err = await response.json(); // חילוץ הודעת השגיאה מהשרת
+      throw new Error(err.error || 'נכשל בסנכרון מול Monday.com'); // זריקת שגיאה עם הסבר
+    } // סיום תנאי השגיאה
+    return response.json(); // החזרת אישור הצלחה מהשרת
+  }, // סיום פונקציית הסנכרון
+  
+  // שמירת הגדרות החיבור ומצב הסנכרון האוטומטי של Monday בשרת
+  saveMondayCredentials: async (projectId, token, boardId, autoSync) => { // פונקציה לשמירת פרטי החיבור במסד הנתונים של השרת
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/monday-credentials`, { // פנייה לשרת לשמירת הפרטים
+      method: 'POST', // שיטת POST
+      headers: { 'Content-Type': 'application/json' }, // סוג מידע JSON
+      body: JSON.stringify({ token, boardId, autoSync }) // שליחת הנתונים בגוף הבקשה
+    }); // המתנה
+    if (!response.ok) throw new Error('נכשל בשמירת הגדרות מאנדיי בשרת'); // בדיקת תקינות
+    return response.json(); // החזרת תשובת השרת
+  }, // סיום פונקציית שמירת ההגדרות
+  
+  // ייצוא משימות ויצירת לוח פרויקט חדש אוטומטית ב-Monday.com
+  exportProjectToMonday: async (projectId, token) => { // פונקציה המפעילה את תהליך הייצוא ויצירת הלוח בשרת
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/export-monday`, { // פנייה לנתיב הייצוא בשרת
+      method: 'POST', // שיטת POST
+      headers: { 'Content-Type': 'application/json' }, // סוג מידע JSON
+      body: JSON.stringify({ token }) // שליחת ה-Token בגוף הבקשה
+    }); // המתנה
+    if (!response.ok) { // אם נכשל
+      const err = await response.json(); // חילוץ השגיאה
+      throw new Error(err.error || 'נכשל בייצוא הפרויקט ל-Monday.com'); // זריקת שגיאה
+    } // סיום תנאי
+    return response.json(); // החזרת פרטי הלוח החדש שנוצר
+  }, // סיום פונקציית הייצוא והקמה
+  
+  // קבלת הגדרות סנכרון גלובליות של קבלנים מול Monday.com
+  getMondayContractorsSettings: async () => {
+    const response = await fetch(`${API_BASE_URL}/settings/monday-contractors`);
+    if (!response.ok) throw new Error('נכשל בטעינת הגדרות סנכרון קבלנים');
+    return response.json();
+  },
+  
+  // שמירת הגדרות סנכרון קבלנים גלובליות בשרת
+  saveMondayContractorsSettings: async (token, boardId, autoSync) => {
+    const response = await fetch(`${API_BASE_URL}/settings/monday-contractors`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, boardId, autoSync })
+    });
+    if (!response.ok) throw new Error('נכשל בשמירת הגדרות סנכרון קבלנים');
+    return response.json();
+  },
+  
+  // ייצוא של כל הקבלנים ללוח ה-Monday.com
+  exportContractorsToMonday: async () => {
+    const response = await fetch(`${API_BASE_URL}/contractors/export-monday`, {
+      method: 'POST'
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'נכשל בייצוא קבלנים ל-Monday.com');
+    }
+    return response.json();
+  },
+  
+  // קבלת התראות מערכת כלליות בזמן אמת
+  getSystemNotifications: async () => {
+    const response = await fetch(`${API_BASE_URL}/notifications`);
+    if (!response.ok) throw new Error('נכשל בטעינת התראות מערכת');
+    return response.json();
   }
 };

@@ -135,27 +135,27 @@ const renderCleanContentWithTables = (text) => {
   return <div className="space-y-4">{elements}</div>;
 };
 
-const splitProposal = (proposalText) => {
-  if (!proposalText) return { before: null, after: null };
-  const splitRegex = /(?:\n|^)(?:###\s*4\.|4\.\s*פרטי\s*המציע|\*\*4\.)/i;
-  const match = proposalText.match(splitRegex);
-  if (match) {
-    const index = match.index;
+const splitProposal = (proposalText) => { // פונקציה לפיצול הצעת המחיר לשני חלקים כדי להציג את הטבלה באמצע
+  if (!proposalText) return { before: null, after: null }; // אם אין טקסט הצעה, מחזיר ערכים ריקים
+  const splitRegex = /(?:\n|^)(?:###\s*4\.|4\.\s*פרטי\s*המציע|\*\*4\.)/i; // ביטוי רגולרי לחיפוש כותרת סעיף 4
+  const match = proposalText.match(splitRegex); // חיפוש התאמה בגוף הטקסט
+  if (match) { // אם נמצא סעיף 4
+    const index = match.index; // שמירת מיקום הפיצול
     return {
-      before: proposalText.substring(0, index).trim(),
-      after: proposalText.substring(index).trim()
+      before: proposalText.substring(0, index).trim(), // כל הטקסט שלפני סעיף 4 (מכתב פתיחה ומתודולוגיה)
+      after: proposalText.substring(index).trim() // כל הטקסט מסעיף 4 והלאה (פרטי מציע וחתימות)
     };
   }
-  const signatureRegex = /(?:\n|^)(?:###\s*חתימה|\*\*חתימה|פרטי\s*המציע|שם\s*המציע\s*:\s*ברסוף)/i;
-  const sigMatch = proposalText.match(signatureRegex);
-  if (sigMatch) {
-    const index = sigMatch.index;
+  const signatureRegex = /(?:\n|^)(?:###\s*חתימה|\*\*חתימה|פרטי\s*המציע|שם\s*המציע\s*:\s*ברסוף)/i; // ביטוי רגולרי חלופי לחיפוש חתימות
+  const sigMatch = proposalText.match(signatureRegex); // חיפוש התאמה חלופית
+  if (sigMatch) { // אם נמצאה חתימה
+    const index = sigMatch.index; // מיקום החיתוך
     return {
-      before: proposalText.substring(0, index).trim(),
-      after: proposalText.substring(index).trim()
+      before: proposalText.substring(0, index).trim(), // טקסט שלפני החתימה
+      after: proposalText.substring(index).trim() // טקסט החתימה עצמה
     };
   }
-  return { before: proposalText, after: null };
+  return { before: proposalText, after: null }; // אם לא נמצאה נקודת חיתוך, מחזיר את כל הטקסט כחלק הראשון
 };
 
 export function Dashboard() { // דף הלוח בקרה (דשבורד) של הפרויקט
@@ -365,66 +365,66 @@ export function Dashboard() { // דף הלוח בקרה (דשבורד) של הפ
                         })()}
                       </div>
                     )}
-                    {(() => {
-                      const { before, after } = splitProposal(project.proposal);
-                      return (
+                    {(() => { // ביצוע פיצול הצעת המחיר להצגה
+                      const { before, after } = splitProposal(project.proposal); // פיצול התוכן לפני ואחרי סעיף 4
+                      return ( // החזרת אלמנטי ה-JSX המפוצלים
                         <>
-                          {before && <div>{renderCleanContentWithTables(before)}</div>}
+                          {before && <div>{renderCleanContentWithTables(before)}</div>} {/* רינדור נקי של החלק הראשון לפני סעיף 4 */}
                           
-                          {project.boq_json && (
-                            <div className="mt-6 border-t border-emerald-100 pt-4">
-                              <h5 className="font-bold text-xs text-emerald-800 mb-3 flex items-center gap-1.5">
-                                <ClipboardList className="w-4.5 h-4.5" />
-                                כתב כמויות מפורט (BOQ) ואומדן עלויות
+                          {project.boq_json && ( // אם קיימים נתוני כתב כמויות (BOQ) בפורמט JSON
+                            <div className="mt-6 border-t border-emerald-100 pt-4"> {/* עיצוב מיכל הטבלה בדשבורד */}
+                              <h5 className="font-bold text-xs text-emerald-800 mb-3 flex items-center gap-1.5"> {/* כותרת עם אייקון */}
+                                <ClipboardList className="w-4.5 h-4.5" /> {/* אייקון רשימה */}
+                                כתב כמויות מפורט (BOQ) ואומדן עלויות {/* כותרת בעברית */}
                               </h5>
-                              <div className="overflow-x-auto rounded-lg border border-emerald-100 shadow-sm bg-white">
-                                <table className="w-full text-right text-[11px] border-collapse">
-                                  <thead>
-                                    <tr className="bg-emerald-50/50 text-emerald-800 font-bold border-b border-emerald-100">
-                                      <th className="p-2 w-8 text-center">#</th>
-                                      <th className="p-2 w-20">סעיף</th>
-                                      <th className="p-2">תיאור העבודה</th>
-                                      <th className="p-2 w-16 text-center">כמות</th>
-                                      <th className="p-2 w-16 text-center">יחידה</th>
-                                      <th className="p-2 w-24 text-left">מחיר יחידה</th>
-                                      <th className="p-2 w-24 text-left">סה"כ (₪)</th>
+                              <div className="overflow-x-auto rounded-lg border border-emerald-100 shadow-sm bg-white"> {/* פאנל גלילה אופקי */}
+                                <table className="w-full text-right text-[11px] border-collapse"> {/* טבלת כתב הכמויות בדשבורד */}
+                                  <thead> {/* כותרת הטבלה */}
+                                    <tr className="bg-emerald-50/50 text-emerald-800 font-bold border-b border-emerald-100"> {/* שורת כותרת מעוצבת */}
+                                      <th className="p-2 w-8 text-center">#</th> {/* עמודת מספר סידורי */}
+                                      <th className="p-2 w-20">סעיף</th> {/* עמודת מספר סעיף */}
+                                      <th className="p-2">תיאור העבודה</th> {/* עמודת תיאור */}
+                                      <th className="p-2 w-16 text-center">כמות</th> {/* עמודת כמות */}
+                                      <th className="p-2 w-16 text-center">יחידה</th> {/* עמודת יחידת מידה */}
+                                      <th className="p-2 w-24 text-left">מחיר יחידה</th> {/* עמודת מחיר ליחידה */}
+                                      <th className="p-2 w-24 text-left">סה"כ (₪)</th> {/* עמודת סך הכל סעיף */}
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-emerald-50 text-slate-700">
-                                    {(() => {
-                                      try {
-                                        const boq = JSON.parse(project.boq_json);
-                                        if (!Array.isArray(boq)) return null;
-                                        let totalSum = 0;
-                                        return (
+                                  <tbody className="divide-y divide-emerald-50 text-slate-700"> {/* גוף הטבלה */}
+                                    {(() => { // הרצת קטע קוד לטעינת הנתונים מה-JSON
+                                      try { // מניעת קריסות בעת פענוח ה-JSON
+                                        const boq = JSON.parse(project.boq_json); // פענוח מחרוזת ה-JSON למערך
+                                        if (!Array.isArray(boq)) return null; // בדיקה שאכן מדובר במערך
+                                        let totalSum = 0; // משתנה זמני לצבירת הסכום הכולל
+                                        return ( // החזרת שורות הטבלה
                                           <>
-                                            {boq.map((item, idx) => {
-                                              const qty = Number(item.quantity) || 0;
-                                              const price = Number(item.unitPrice || item.price || 0);
-                                              const lineTotal = qty * price;
-                                              totalSum += lineTotal;
-                                              return (
-                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                                  <td className="p-2 text-center text-slate-400 font-medium">{idx + 1}</td>
-                                                  <td className="p-2 font-semibold text-slate-800">{item.section}</td>
-                                                  <td className="p-2 text-slate-600">{item.item || item.description}</td>
-                                                  <td className="p-2 text-center">{qty.toLocaleString('he-IL')}</td>
-                                                  <td className="p-2 text-center">{item.unit || 'יח\''}</td>
-                                                  <td className="p-2 text-left font-mono">{price.toLocaleString('he-IL')} ₪</td>
-                                                  <td className="p-2 text-left font-bold text-slate-800 font-mono">{lineTotal.toLocaleString('he-IL')} ₪</td>
+                                            {boq.map((item, idx) => { // מעבר על פריטי כתב הכמויות
+                                              const qty = Number(item.quantity) || 0; // המרת כמות למספר
+                                              const price = Number(item.unitPrice || item.price || 0); // המרת מחיר יחידה למספר
+                                              const lineTotal = qty * price; // חישוב סך הכל לשורה
+                                              totalSum += lineTotal; // הוספה לסכום הכללי
+                                              return ( // רינדור שורת פריט בטבלה
+                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors"> {/* שורה עם אפקט מעבר */}
+                                                  <td className="p-2 text-center text-slate-400 font-medium">{idx + 1}</td> {/* אינדקס */}
+                                                  <td className="p-2 font-semibold text-slate-800">{item.section}</td> {/* סעיף */}
+                                                  <td className="p-2 text-slate-600">{item.item || item.description}</td> {/* תיאור */}
+                                                  <td className="p-2 text-center">{qty.toLocaleString('he-IL')}</td> {/* כמות מפורמטת */}
+                                                  <td className="p-2 text-center">{item.unit || 'יח\''}</td> {/* יחידה */}
+                                                  <td className="p-2 text-left font-mono">{price.toLocaleString('he-IL')} ₪</td> {/* מחיר יחידה מפורמט */}
+                                                  <td className="p-2 text-left font-bold text-slate-800 font-mono">{lineTotal.toLocaleString('he-IL')} ₪</td> {/* סך שורה מפורמט */}
                                                 </tr>
                                               );
                                             })}
-                                            <tr className="bg-emerald-50/20 font-bold border-t border-emerald-100 text-emerald-900">
-                                              <td colSpan="6" className="p-2.5 text-right text-xs">סה"כ אומדן הצעת מחיר (לא כולל מע"מ):</td>
-                                              <td className="p-2.5 text-left text-xs font-extrabold font-mono border-b-2 border-double border-emerald-600">
-                                                {totalSum.toLocaleString('he-IL')} ₪
+                                            <tr className="bg-emerald-50/20 font-bold border-t border-emerald-100 text-emerald-900"> {/* שורת סיכום */}
+                                              <td colSpan="6" className="p-2.5 text-right text-xs">סה"כ אומדן הצעת מחיר (לא כולל מע"מ):</td> {/* כותרת סיכום */}
+                                              <td className="p-2.5 text-left text-xs font-extrabold font-mono border-b-2 border-double border-emerald-600"> {/* תא הסכום */}
+                                                {totalSum.toLocaleString('he-IL')} ₪ {/* הצגת הסכום הסופי מפורמט */}
                                               </td>
                                             </tr>
                                           </>
                                         );
-                                      } catch (e) {
-                                        return <tr><td colSpan="7" className="p-3 text-center text-red-500">שגיאה בפענוח כתב הכמויות</td></tr>;
+                                      } catch (e) { // במקרה של שגיאה בפענוח ה-JSON
+                                        return <tr><td colSpan="7" className="p-3 text-center text-red-500">שגיאה בפענוח כתב הכמויות</td></tr>; // הצגת שורת שגיאה
                                       }
                                     })()}
                                   </tbody>
@@ -433,7 +433,7 @@ export function Dashboard() { // דף הלוח בקרה (דשבורד) של הפ
                             </div>
                           )}
 
-                          {after && <div className="mt-6 border-t border-slate-100 pt-4">{renderCleanContentWithTables(after)}</div>}
+                          {after && <div className="mt-6 border-t border-slate-100 pt-4">{renderCleanContentWithTables(after)}</div>} {/* רינדור נקי של החלק השני (פרטי מציע וחתימות) */}
                         </>
                       );
                     })()}

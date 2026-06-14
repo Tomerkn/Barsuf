@@ -12,8 +12,8 @@ export function ProjectGantt({ projectId }) {
   // Monday Sync State
   const [showMondayModal, setShowMondayModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [mondayToken, setMondayToken] = useState('eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjYwMTI4NjQwMywiYWFpIjoxMSwidWlkIjo5NzcwMTk5NCwiaWFkIjoiMjAyNS0xMi0yN1QxNTo0NjowNC4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MzI1NDUwMjYsInJnbiI6ImV1YzEifQ.DEQcRaY0dumwEXLVoyEimnfgaLtiFbe0q6g40Okc0KI');
-  const [mondayBoardId, setMondayBoardId] = useState('5089388529');
+  const [mondayToken, setMondayToken] = useState('');
+  const [mondayBoardId, setMondayBoardId] = useState('');
 
   const fetchTasks = async () => {
     if (!projectId) return;
@@ -28,8 +28,23 @@ export function ProjectGantt({ projectId }) {
     }
   };
 
+  const fetchProjectDetails = async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.monday_token) setMondayToken(data.monday_token);
+        if (data.monday_board_id) setMondayBoardId(data.monday_board_id);
+      }
+    } catch (error) {
+      console.error('Error fetching project details', error);
+    }
+  };
+
   useEffect(() => {
     fetchTasks();
+    fetchProjectDetails();
   }, [projectId]);
 
   const calculateDays = (start, end) => {
@@ -224,7 +239,12 @@ export function ProjectGantt({ projectId }) {
             <div className="flex-1">
                {tasks.map(task => (
                   <div key={task.id} className="h-12 flex items-center border-b border-border px-3 text-sm hover:bg-surface-hover/30 transition-colors group">
-                     <div className="flex-1 truncate pl-2 font-medium text-text-primary" title={task.name}>{task.name}</div>
+                     <div className="flex-1 truncate pl-2 font-medium text-text-primary flex items-center gap-1.5" title={task.name}>
+                       {task.monday_id && (
+                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="סונכרן מול Monday.com" />
+                       )}
+                       <span className="truncate">{task.name}</span>
+                     </div>
                      <div className="w-20 text-center text-text-secondary text-[11px] font-mono">{new Date(task.start_date).toLocaleDateString('he-IL')}</div>
                      <div className="w-20 text-center text-text-secondary text-[11px] font-mono">{new Date(task.end_date).toLocaleDateString('he-IL')}</div>
                      <div className="w-12 text-center font-medium bg-surface-hover rounded mx-1 py-1 text-xs">{calculateDays(task.start_date, task.end_date)}</div>
