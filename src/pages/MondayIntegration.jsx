@@ -18,9 +18,6 @@ export function MondayIntegration() {
   const { projectId } = useParams();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [provisioning, setProvisioning] = useState(false);
-  const [provisioningPremium, setProvisioningPremium] = useState(false);
-  const [activeGuideTab, setActiveGuideTab] = useState('gantt');
   const [tasks, setTasks] = useState([]);
   const [project, setProject] = useState(null);
   const [quickTaskName, setQuickTaskName] = useState('');
@@ -30,11 +27,6 @@ export function MondayIntegration() {
   
   const [token, setToken] = useState('eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjY2ODM4MDUyOCwiYWFpIjoxMSwidWlkIjoxMDMzMjkyNzQsImlhZCI6IjIwMjYtMDYtMDhUMTg6MTQ6MDIuMDAwWiIsInBlciI6Im1lOndyaXRlIiwiYWN0aWQiOjM1MDE1MDc4LCJyZ24iOiJldWMxIn0.MwVqTuydRsvQqwg02Gt4vc6yr5SkHwwgBQXP4735wNE');
   const [boardId, setBoardId] = useState('5098147203');
-  const [autoSync, setAutoSync] = useState(true);
-  const [connectionSaved, setConnectionSaved] = useState(false);
-  const [embedUrl, setEmbedUrl] = useState('');
-  const [savingEmbedUrl, setSavingEmbedUrl] = useState(false);
-  const [embedSaved, setEmbedSaved] = useState(false);
 
   const fetchProjectAndTasks = async () => {
     try {
@@ -48,8 +40,6 @@ export function MondayIntegration() {
         setProject(currentProj);
         if (currentProj.monday_token) setToken(currentProj.monday_token);
         if (currentProj.monday_board_id) setBoardId(currentProj.monday_board_id);
-        setAutoSync(currentProj.monday_auto_sync === 1);
-        if (currentProj.monday_embed_url) setEmbedUrl(currentProj.monday_embed_url);
       }
       
       setTasks(tasksData || []);
@@ -63,75 +53,6 @@ export function MondayIntegration() {
   useEffect(() => {
     fetchProjectAndTasks();
   }, [projectId]);
-
-  const handleSaveCredentials = async (e) => {
-    e.preventDefault();
-    try {
-      await api.saveMondayCredentials(projectId, token, boardId, autoSync);
-      setConnectionSaved(true);
-      setTimeout(() => setConnectionSaved(false), 3000);
-      await fetchProjectAndTasks();
-    } catch (err) {
-      alert('שגיאה בשמירת פרטי החיבור: ' + err.message);
-    }
-  };
-
-  const handleSaveEmbedUrl = async (e) => {
-    e.preventDefault();
-    setSavingEmbedUrl(true);
-    try {
-      await api.saveMondayEmbedUrl(projectId, embedUrl);
-      setEmbedSaved(true);
-      setTimeout(() => setEmbedSaved(false), 3000);
-      await fetchProjectAndTasks();
-    } catch (err) {
-      alert('שגיאה בשמירת קישור ההטמעה: ' + err.message);
-    } finally {
-      setSavingEmbedUrl(false);
-    }
-  };
-
-  const handleAutoProvision = async () => {
-    if (!token) {
-      alert('נא להזין מפתח גישה (Token) תקין לצורך יצירת לוח');
-      return;
-    }
-    
-    if (!window.confirm('האם ליצור לוח פרויקט חדש ב-Monday ולייצא אליו את כל המשימות הנוכחיות?')) return;
-    
-    setProvisioning(true);
-    try {
-      const res = await api.exportProjectToMonday(projectId, token);
-      alert(`הלוח הוקם בהצלחה! מזהה הלוח: ${res.boardId}. סונכרנו ${res.exported} משימות.`);
-      setBoardId(res.boardId);
-      await fetchProjectAndTasks();
-    } catch (err) {
-      alert('נכשל בהקמת לוח ב-Monday: ' + err.message);
-    } finally {
-      setProvisioning(false);
-    }
-  };
-
-  const handlePremiumProvision = async () => {
-    if (!token) {
-      alert('נא להזין מפתח גישה (Token) תקין לצורך יצירת לוח');
-      return;
-    }
-    
-    if (!window.confirm('האם ליצור לוח בנייה פרימיום חדש ב-Monday? הלוח יחולק ל-5 שלבי בנייה סטנדרטיים עם עמודות תקציב, עלויות, עדיפות וסטטוס.')) return;
-    
-    setProvisioningPremium(true);
-    try {
-      const res = await api.exportPremiumProjectToMonday(projectId, token);
-      alert(`לוח הבנייה פרימיום הוקם בהצלחה! מזהה הלוח: ${res.boardId}. סונכרנו ${res.exported} משימות ב-5 שלבי בנייה.`);
-      setBoardId(res.boardId);
-      await fetchProjectAndTasks();
-    } catch (err) {
-      alert('נכשל בהקמת לוח בנייה פרימיום ב-Monday: ' + err.message);
-    } finally {
-      setProvisioningPremium(false);
-    }
-  };
 
   const handleSync = async () => {
     if (!token || !boardId) {
@@ -148,20 +69,6 @@ export function MondayIntegration() {
       alert(`שגיאה בסנכרון מול מאנדיי: ${error.message}`);
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    if (!window.confirm('האם אתה בטוח שברצונך לנתק את החיבור ל-Monday.com? זה יפסיק את הסנכרון האוטומטי.')) return;
-    try {
-      await api.saveMondayCredentials(projectId, null, null, false);
-      setToken('');
-      setBoardId('');
-      setAutoSync(false);
-      alert('החיבור ל-Monday.com נותק בהצלחה.');
-      await fetchProjectAndTasks();
-    } catch (err) {
-      alert('שגיאה בניתוק החיבור: ' + err.message);
     }
   };
 
@@ -327,6 +234,10 @@ export function MondayIntegration() {
           <div className="flex items-center gap-2.5">
             <span className="w-7 h-7 rounded-lg bg-[#6161ff] flex items-center justify-center text-white text-sm font-extrabold shadow-xs">m</span>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">ניהול אינטגרציה מול Monday.com</h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-bold">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+              מחובר ומסונכרן (ID: {boardId})
+            </span>
           </div>
           <p className="text-slate-400 text-xs mt-1">סנכרון לוחות זמנים (WBS), תקציבי בנייה ועלויות ביצוע בזמן אמת</p>
         </div>
@@ -362,331 +273,6 @@ export function MondayIntegration() {
           </div>
         )}
       </div>
-
-      {/* אשף חיבור מהיר ל-Monday.com או תצוגת הגדרות סנכרון */}
-      {!boardId ? (
-        // === Disconnected / Clean Onboarding State ===
-        <div className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-800">הגדרת חיבור ל-Monday.com</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5 font-medium">הגדר את פרטי החיבור ללוח הבנייה והמכרזים של הפרויקט</p>
-            </div>
-            <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold">לא מחובר</span>
-          </div>
-
-          <div className="p-6 space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700">מפתח גישה (API Token)</label>
-                <input
-                  type="text"
-                  value={token}
-                  onChange={e => setToken(e.target.value)}
-                  placeholder="הזן API Token של Monday.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[#6161ff] focus:bg-white transition-all text-slate-600"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700">מזהה לוח בנייה (Board ID)</label>
-                <input
-                  type="text"
-                  value={boardId}
-                  onChange={e => setBoardId(e.target.value)}
-                  placeholder="הזן מזהה לוח (למשל: 5098147203)"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[#6161ff] focus:bg-white transition-all text-slate-600"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={handleSaveCredentials}
-                disabled={!token || !boardId}
-                className="w-full sm:w-auto px-5 py-2.5 bg-[#6161ff] hover:bg-[#4d4dcc] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-              >
-                חבר לוח קיים וסנכרן
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePremiumProvision}
-                disabled={provisioningPremium || !token}
-                className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-              >
-                {provisioningPremium ? 'מקים לוח פרימיום...' : 'או הקם לוח פרימיום חדש אוטומטית'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        // === Connected State ===
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Connection Status Card */}
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col justify-between">
-              <div>
-                <h3 className="font-bold text-sm text-slate-800 mb-4 flex items-center gap-2">
-                  <Database className="w-4.5 h-4.5 text-[#6161ff]" />
-                  חיבור פעיל מול Monday.com
-                </h3>
-                
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl">
-                    <span className="text-xs text-slate-500 font-bold">סטטוס חיבור</span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
-                      <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-pulse"></span>
-                      מחובר ומסונכרן
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500 font-bold">קישור ללוח</span>
-                    <a
-                      href={`https://monday-class-colman-q2-2026.monday.com/boards/${boardId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[#6161ff] hover:underline font-bold"
-                    >
-                      פתח לוח במאנדיי
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500 font-bold">מזהה לוח (Board ID)</span>
-                    <span className="font-mono text-slate-800 font-bold bg-slate-100 px-2 py-0.5 rounded">{boardId}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 border-t border-slate-100 pt-4">
-                <button
-                  type="button"
-                  onClick={handleDisconnect}
-                  className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
-                >
-                  נתק חיבור ל-Monday.com
-                </button>
-              </div>
-            </div>
-
-            {/* Connection Settings Form */}
-            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-              <h3 className="font-bold text-sm text-slate-800 mb-4 flex items-center gap-2">
-                <Key className="w-4.5 h-4.5 text-[var(--color-brand)]" />
-                הגדרות סנכרון ואינטגרציה
-              </h3>
-              
-              <form onSubmit={handleSaveCredentials} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2 space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-500">API Token מפתח גישה</label>
-                    <input
-                      type="password"
-                      value={token}
-                      onChange={e => setToken(e.target.value)}
-                      placeholder="הזן מפתח גישה חדש לעדכון"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[var(--color-brand)] focus:bg-white transition-all"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-500">מזהה לוח (Board ID)</label>
-                    <input
-                      type="text"
-                      value={boardId}
-                      onChange={e => setBoardId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[var(--color-brand)] focus:bg-white transition-all"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Auto sync toggle */}
-                <div className="flex items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setAutoSync(!autoSync)}
-                    className="text-[var(--color-brand)] focus:outline-none cursor-pointer"
-                  >
-                    {autoSync ? (
-                      <ToggleRight className="w-9 h-9" />
-                    ) : (
-                      <ToggleLeft className="w-9 h-9 text-slate-400" />
-                    )}
-                  </button>
-                  <div className="text-right">
-                    <h5 className="text-xs font-bold text-slate-800">סנכרון דו-כיווני אוטומטי בזמן אמת</h5>
-                    <p className="text-[10px] text-slate-500 mt-0.5">כל הוספה, עדכון או מחיקה של משימה באפליקציה תתעדכן מיידית בלוח ה-Monday שלך</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    עדכן הגדרות חיבור
-                  </button>
-
-                  {connectionSaved && (
-                    <span className="text-emerald-600 text-xs font-bold flex items-center gap-1 animate-fade-in">
-                      <CheckCircle className="w-4 h-4" />
-                      ההגדרות עודכנו בהצלחה!
-                    </span>
-                  )}
-                </div>
-              </form>
-            </div>
-          </div>
-
-          {/* Live Monday Embed View Panel */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                  <BarChart3 className="w-4.5 h-4.5 text-[#6161ff]" />
-                  לוח בקרה אינטגרטיבי חי מ-Monday.com
-                </h3>
-                <p className="text-slate-400 text-[11px] mt-0.5 font-medium">
-                  הטמעת דאשבורדים, תצוגות גאנט או לוחות עבודה של Monday.com ישירות בתוך מערכת בארסוף
-                </p>
-              </div>
-              
-              <form onSubmit={handleSaveEmbedUrl} className="flex items-center gap-2 max-w-md w-full font-sans">
-                <input
-                  type="url"
-                  value={embedUrl}
-                  onChange={e => setEmbedUrl(e.target.value)}
-                  placeholder="הדבק כאן את כתובת ההטמעה (https://view.monday.com/embed/...)"
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] focus:outline-none focus:border-[#6161ff] transition-all font-mono"
-                />
-                <button
-                  type="submit"
-                  disabled={savingEmbedUrl}
-                  className="px-3.5 py-1.5 bg-[#6161ff] hover:bg-[#4d4dcc] disabled:bg-slate-200 text-white rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap"
-                >
-                  {savingEmbedUrl ? 'שומר...' : 'שמור קישור'}
-                </button>
-              </form>
-            </div>
-
-            {embedUrl ? (
-              <div className="relative rounded-2xl overflow-hidden border border-slate-200/80 shadow-inner bg-slate-50">
-                <iframe
-                  src={embedUrl}
-                  width="100%"
-                  height="600"
-                  className="border-0 w-full"
-                  allowFullScreen
-                  title="Monday Dashboard Embed"
-                ></iframe>
-              </div>
-            ) : (
-              <div className="text-center py-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl space-y-3">
-                <p className="text-slate-500 text-xs font-semibold">טרם הוגדר קישור הטמעה ללוח זה.</p>
-                <div className="max-w-md mx-auto text-right text-[10px] text-slate-400 leading-relaxed bg-white border border-slate-200 p-3.5 rounded-xl space-y-1">
-                  <p className="font-bold text-slate-600 mb-1">כיצד להטמיע את לוח ה-Monday שלך?</p>
-                  <p>1. כנס ללוח או לדאשבורד שלך ב-Monday.com.</p>
-                  <p>2. לחץ על כפתור <strong>Share (שתף)</strong> בראש המסך.</p>
-                  <p>3. בחר בלשונית <strong>Embed (הטמעה)</strong>.</p>
-                  <p>4. העתק את כתובת ה-URL שבתוך ה-iframe (כתובת שמתחילה ב-<code>https://view.monday.com/embed/</code>) והדבק אותה למעלה.</p>
-                </div>
-              </div>
-            )}
-            
-            {embedSaved && (
-              <p className="text-emerald-600 text-xs font-bold text-center animate-fade-in flex items-center justify-center gap-1">
-                <CheckCircle className="w-4 h-4" />
-                קישור ההטמעה עודכן ונשמר בהצלחה!
-              </p>
-            )}
-          </div>
-
-          {/* Premium Monday Dashboard Widgets Directory */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-100 p-5">
-              <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                <BarChart3 className="w-4.5 h-4.5 text-[#6161ff]" />
-                תצורת לוחות מחוונים מומלצת ב-Monday.com
-              </h3>
-              <p className="text-slate-400 text-[11px] mt-1 font-medium">
-                הגדרות מומלצות לבניית לוח בקרה אינטגרטיבי ומקצועי למנהלי פרויקטים בבנייה
-              </p>
-            </div>
-            
-            <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-slate-50/50 border border-slate-200/60 rounded-xl p-4.5 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#6161ff]"></span>
-                    <h4 className="text-xs font-bold text-slate-800">וידג׳ט גאנט (Gantt Chart)</h4>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    מעקב אחר הנתיב הקריטי של שלבי הפרויקט ותלויות ביצוע בין קבלני המשנה.
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-2.5 space-y-1 text-[10px]">
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">עמודת זמן:</span> <span className="text-slate-700 font-bold">לוח זמנים</span></div>
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">קיבוץ לפי:</span> <span className="text-slate-700 font-bold">Group (שלבים)</span></div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50/50 border border-slate-200/60 rounded-xl p-4.5 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <h4 className="text-xs font-bold text-slate-800">מד התקדמות (Battery)</h4>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    תמונת מצב מרוכזת של אחוזי המשימות שהושלמו, בעיכוב או בביצוע מכלל הפרויקט.
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-2.5 space-y-1 text-[10px]">
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">עמודת מקור:</span> <span className="text-slate-700 font-bold">סטטוס ביצוע</span></div>
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">תצוגה:</span> <span className="text-slate-700 font-bold">אחוזים משוקללים</span></div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50/50 border border-slate-200/60 rounded-xl p-4.5 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                    <h4 className="text-xs font-bold text-slate-800">סיכומי תקציב (Numbers)</h4>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    סיכום עלויות ביצוע בפועל מול התקציב המתוכנן ברמת שלב וברמת פרויקט.
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-2.5 space-y-1 text-[10px]">
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">עמודות:</span> <span className="text-slate-700 font-bold">תקציב מתוכנן, עלות</span></div>
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">פונקציה:</span> <span className="text-slate-700 font-bold">סכום כולל (Sum)</span></div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50/50 border border-slate-200/60 rounded-xl p-4.5 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                    <h4 className="text-xs font-bold text-slate-800">גרף השוואתי (Charts)</h4>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    השוואה גרפית של תקציב מול ביצוע בפועל לפי קבוצות עבודה לזיהוי חריגות תקציביות.
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-2.5 space-y-1 text-[10px]">
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">סוג גרף:</span> <span className="text-slate-700 font-bold">עמודות (Bar Chart)</span></div>
-                  <div className="flex justify-between text-slate-400"><span className="font-bold">ציר Y:</span> <span className="text-slate-700 font-bold">סכום תקציב ועלות</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <KpiCard 

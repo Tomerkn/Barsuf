@@ -1529,69 +1529,251 @@ app.post('/api/monday/webhook', async (req, res) => {
   try {
     const boardId = event.boardId.toString();
     const pulseId = event.pulseId.toString();
+    const globalToken = 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjY2ODM4MDUyOCwiYWFpIjoxMSwidWlkIjoxMDMzMjkyNzQsImlhZCI6IjIwMjYtMDYtMDhUMTg6MTQ6MDIuMDAwWiIsInBlciI6Im1lOndyaXRlIiwiYWN0aWQiOjM1MDE1MDc4LCJyZ24iOiJldWMxIn0.MwVqTuydRsvQqwg02Gt4vc6yr5SkHwwgBQXP4735wNE';
 
-    const project = db.prepare('SELECT id, monday_token FROM projects WHERE monday_board_id = ?').get(boardId);
-    if (!project) {
-      return res.status(200).send('Board not linked to any project');
-    }
-
-    const query = `query {
-      items (ids: [${pulseId}]) {
-        name
-        column_values {
-          id
-          text
-          value
-        }
+    if (boardId === '5098147203') {
+      // --- Projects & Tenders Board Sync ---
+      console.log(`[Webhook] Processing Projects/Tenders board change for item ${pulseId}`);
+      
+      if (req.body.event.type === 'delete_item') {
+        db.prepare('DELETE FROM projects WHERE monday_id = ?').run(pulseId);
+        db.prepare('DELETE FROM tenders WHERE monday_id = ?').run(pulseId);
+        console.log(`[Webhook] Deleted project/tender with monday_id ${pulseId}`);
+        await db.backupToCloud();
+        return res.status(200).send('OK');
       }
-    }`;
 
-    const mondayRes = await fetch('https://api.monday.com/v2', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': project.monday_token,
-        'API-Version': '2024-01'
-      },
-      body: JSON.stringify({ query })
-    });
-    const mondayData = await mondayRes.json();
-    const item = mondayData?.data?.items?.[0];
+      const query = `query {
+        items (ids: [${pulseId}]) {
+          name
+          group {
+            id
+          }
+          column_values {
+            id
+            text
+            value
+          }
+        }
+      }`;
 
-    if (item) {
-      let progress = 0;
-      let startDate = new Date().toISOString().split('T')[0];
-      let endDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const mondayRes = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': globalToken,
+          'API-Version': '2024-01'
+        },
+        body: JSON.stringify({ query })
+      });
+      const mondayData = await mondayRes.json();
+      const item = mondayData?.data?.items?.[0];
+
+      if (!item) {
+        db.prepare('DELETE FROM projects WHERE monday_id = ?').run(pulseId);
+        db.prepare('DELETE FROM tenders WHERE monday_id = ?').run(pulseId);
+        await db.backupToCloud();
+        return res.status(200).send('OK');
+      }
+
+      const name = item.name;
+      const groupId = item.group?.id || '';
+      
+      let client = '';
+      let amount = 0;
+      let dueDate = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+      let receivedDate = new Date().toISOString().split('T')[0];
+      let status = 'Working on it';
+      let notes = '';
 
       for (const col of item.column_values) {
         try {
-          if (col.id === 'timeline' || col.id.includes('timeline') || col.id.includes('time') || col.id.includes('range')) {
+          if (col.id === 'text_mm44nn33' || col.id === 'text') {
+            client = col.text || '';
+          } else if (col.id === 'numeric_mm44271k' || col.id === 'numbers') {
+            amount = parseFloat(col.text || '0');
+          } else if (col.id === 'date_mm44fzgd' || col.id === 'date') {
             const val = JSON.parse(col.value || '{}');
-            if (val.from) startDate = val.from;
-            if (val.to) endDate = val.to;
-          } else if (col.id === 'numbers' || col.id.includes('progress') || col.id.includes('percent')) {
-            progress = Math.min(100, Math.max(0, parseInt(col.text || '0')));
-          } else if (col.id === 'status' || col.id.includes('status') || col.id.includes('color')) {
-            if (col.text === 'Done' || col.text === 'הושלם' || col.text === 'סיים') progress = 100;
-            else if (col.text === 'Working on it' || col.text === 'בעבודה') progress = 50;
+            if (val.date) dueDate = val.date;
+          } else if (col.id === 'date_mm442yfk') {
+            const val = JSON.parse(col.value || '{}');
+            if (val.date) receivedDate = val.date;
+          } else if (col.id === 'color_mm44vp0m') {
+            status = col.text || '';
+          } else if (col.id === 'text_mm44rg53' || col.id === 'text8') {
+            notes = col.text || '';
           }
         } catch (e) {}
       }
 
-      const existingTask = db.prepare('SELECT id FROM tasks WHERE monday_id = ? AND project_id = ?').get(pulseId, project.id);
-      if (existingTask) {
-        db.prepare('UPDATE tasks SET progress = ?, start_date = ?, end_date = ? WHERE id = ?')
-          .run(progress, startDate, endDate, existingTask.id);
-        console.log(`✅ Webhook: Synced task ${existingTask.id} from Monday (Progress: ${progress}%)`);
-      } else {
-        db.prepare('INSERT INTO tasks (project_id, name, progress, start_date, end_date, monday_id) VALUES (?, ?, ?, ?, ?, ?)')
-          .run(project.id, item.name, progress, startDate, endDate, pulseId);
-        console.log(`✅ Webhook: Created new task locally from Monday (Item: ${item.name})`);
-      }
-      await db.backupToCloud();
-    }
+      if (groupId === 'group_mm44z5z9') {
+        db.prepare('DELETE FROM tenders WHERE monday_id = ?').run(pulseId);
 
-    res.status(200).send('OK');
+        const existingProject = db.prepare('SELECT id FROM projects WHERE monday_id = ?').get(pulseId);
+        if (existingProject) {
+          db.prepare('UPDATE projects SET name = ?, end_date = ?, status = ?, location = ?, analysis = ? WHERE id = ?')
+            .run(name, dueDate, status === 'Stuck' ? 'עיכוב' : 'תקין', notes || 'נווה עמל, הרצליה', `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪`, existingProject.id);
+          console.log(`[Webhook] Updated existing project: ${name}`);
+        } else {
+          db.prepare('INSERT INTO projects (name, location, end_date, status, analysis, monday_id, monday_board_id, monday_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(name, notes || 'נווה עמל, הרצליה', dueDate, status === 'Stuck' ? 'עיכוב' : 'תקין', `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪`, pulseId, '5098147203', globalToken);
+          console.log(`[Webhook] Created new project: ${name}`);
+        }
+      } else {
+        db.prepare('DELETE FROM projects WHERE monday_id = ?').run(pulseId);
+
+        let tenderStatus = 'חדש';
+        if (groupId === 'group_mm44vds9') tenderStatus = 'נותח';
+        else if (groupId === 'group_mm44ncgn') tenderStatus = 'הוגש';
+        else if (groupId === 'group_mm4428r5') tenderStatus = 'לא זכינו';
+
+        const existingTender = db.prepare('SELECT id FROM tenders WHERE monday_id = ?').get(pulseId);
+        if (existingTender) {
+          db.prepare('UPDATE tenders SET name = ?, status = ?, analysis = ?, proposal = ? WHERE id = ?')
+            .run(name, tenderStatus, `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪. הערות: ${notes}`, `הצעה משוערכת: ${amount.toLocaleString('he-IL')} ₪`, existingTender.id);
+          console.log(`[Webhook] Updated existing tender: ${name}`);
+        } else {
+          db.prepare('INSERT INTO tenders (name, upload_date, status, analysis, proposal, boq_json, monday_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            .run(name, receivedDate, tenderStatus, `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪. הערות: ${notes}`, `הצעה משוערכת: ${amount.toLocaleString('he-IL')} ₪`, JSON.stringify([]), pulseId);
+          console.log(`[Webhook] Created new tender: ${name}`);
+        }
+      }
+
+      await db.backupToCloud();
+      return res.status(200).send('OK');
+
+    } else if (boardId === '5098147406') {
+      // --- Subcontractors Board Sync ---
+      console.log(`[Webhook] Processing Subcontractors board change for item ${pulseId}`);
+      
+      if (req.body.event.type === 'delete_item') {
+        db.prepare('DELETE FROM contractors WHERE monday_id = ?').run(pulseId);
+        console.log(`[Webhook] Deleted subcontractor with monday_id ${pulseId}`);
+        await db.backupToCloud();
+        return res.status(200).send('OK');
+      }
+
+      const query = `query {
+        items (ids: [${pulseId}]) {
+          name
+          column_values {
+            id
+            text
+            value
+          }
+        }
+      }`;
+
+      const mondayRes = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': globalToken,
+          'API-Version': '2024-01'
+        },
+        body: JSON.stringify({ query })
+      });
+      const mondayData = await mondayRes.json();
+      const item = mondayData?.data?.items?.[0];
+
+      if (!item) {
+        db.prepare('DELETE FROM contractors WHERE monday_id = ?').run(pulseId);
+        await db.backupToCloud();
+        return res.status(200).send('OK');
+      }
+
+      const name = item.name;
+      let specialization = '';
+      let notes = '';
+
+      for (const col of item.column_values) {
+        try {
+          if (col.id === 'text_mm44tthd') {
+            specialization = col.text || '';
+          } else if (col.id === 'text_mm44vndq') {
+            notes = col.text || '';
+          }
+        } catch (e) {}
+      }
+
+      const existingContractor = db.prepare('SELECT id FROM contractors WHERE monday_id = ?').get(pulseId);
+      if (existingContractor) {
+        db.prepare('UPDATE contractors SET name = ?, specialization = ?, email = ? WHERE id = ?')
+          .run(name, specialization, notes || 'אין דוא״ל', existingContractor.id);
+        console.log(`[Webhook] Updated contractor: ${name}`);
+      } else {
+        db.prepare('INSERT INTO contractors (name, specialization, phone, email, monday_id) VALUES (?, ?, ?, ?, ?)')
+          .run(name, specialization, '050-0000000', notes || 'אין דוא״ל', pulseId);
+        console.log(`[Webhook] Created contractor: ${name}`);
+      }
+
+      await db.backupToCloud();
+      return res.status(200).send('OK');
+
+    } else {
+      // --- Default: Project WBS Tasks Sync ---
+      const project = db.prepare('SELECT id, monday_token FROM projects WHERE monday_board_id = ?').get(boardId);
+      if (!project) {
+        return res.status(200).send('Board not linked to any project WBS');
+      }
+      
+      const query = `query {
+        items (ids: [${pulseId}]) {
+          name
+          column_values {
+            id
+            text
+            value
+          }
+        }
+      }`;
+
+      const mondayRes = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': project.monday_token,
+          'API-Version': '2024-01'
+        },
+        body: JSON.stringify({ query })
+      });
+      const mondayData = await mondayRes.json();
+      const item = mondayData?.data?.items?.[0];
+
+      if (item) {
+        let progress = 0;
+        let startDate = new Date().toISOString().split('T')[0];
+        let endDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+        for (const col of item.column_values) {
+          try {
+            if (col.id === 'timeline' || col.id.includes('timeline') || col.id.includes('time') || col.id.includes('range')) {
+              const val = JSON.parse(col.value || '{}');
+              if (val.from) startDate = val.from;
+              if (val.to) endDate = val.to;
+            } else if (col.id === 'numbers' || col.id.includes('progress') || col.id.includes('percent')) {
+              progress = Math.min(100, Math.max(0, parseInt(col.text || '0')));
+            } else if (col.id === 'status' || col.id.includes('status') || col.id.includes('color')) {
+              if (col.text === 'Done' || col.text === 'הושלם' || col.text === 'סיים') progress = 100;
+              else if (col.text === 'Working on it' || col.text === 'בעבודה') progress = 50;
+            }
+          } catch (e) {}
+        }
+
+        const existingTask = db.prepare('SELECT id FROM tasks WHERE monday_id = ? AND project_id = ?').get(pulseId, project.id);
+        if (existingTask) {
+          db.prepare('UPDATE tasks SET progress = ?, start_date = ?, end_date = ? WHERE id = ?')
+            .run(progress, startDate, endDate, existingTask.id);
+          console.log(`✅ Webhook: Synced task ${existingTask.id} from Monday (Progress: ${progress}%)`);
+        } else {
+          db.prepare('INSERT INTO tasks (project_id, name, progress, start_date, end_date, monday_id) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(project.id, item.name, progress, startDate, endDate, pulseId);
+          console.log(`✅ Webhook: Created new task locally from Monday (Item: ${item.name})`);
+        }
+        await db.backupToCloud();
+      }
+      return res.status(200).send('OK');
+    }
   } catch (err) {
     console.error('Monday webhook sync failed:', err);
     res.status(200).send('Error but OK');
