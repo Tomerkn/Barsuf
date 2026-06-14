@@ -262,6 +262,16 @@ export const api = { // יצירת השליח שמדבר עם השרת
     return response.json();
   },
   
+  saveMondayEmbedUrl: async (projectId, embedUrl) => {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/monday-embed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embedUrl })
+    });
+    if (!response.ok) throw new Error('נכשל בשמירת קישור ההטמעה של מאנדיי');
+    return response.json();
+  },
+  
   // קבלת הגדרות סנכרון גלובליות של קבלנים מול Monday.com
   getMondayContractorsSettings: async () => {
     const response = await fetch(`${API_BASE_URL}/settings/monday-contractors`);

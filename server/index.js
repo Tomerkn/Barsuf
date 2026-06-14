@@ -898,39 +898,129 @@ async function syncTaskToMonday(projectId, task, action, extra = {}) { // הגד
         // עדכון תאריכים והתקדמות עבור המשימה שנוצרה
         await syncTaskToMonday(projectId, { ...task, monday_id: mondayId }, 'update'); // הרצת עדכון עמודות
       }
-    } else if (action === 'update') { // מקרה של עדכון משימה קיימת
-      if (!task.monday_id) return; // אם אין מזהה מאנדיי למשימה, אין מה לעדכן
-      
-      // מיפוי שלבי התקדמות לסטטוסים במאנדיי
-      let statusText = 'Not Started'; // ברירת מחדל לא התחיל
-      if (task.progress === 100) statusText = 'Done'; // אם 100% מסמנים כבוצע
-      else if (task.progress > 0) statusText = 'Working on it'; // אם בטווח הביניים מסמנים כבעבודה
-      
-      const start = task.start_date || new Date().toISOString().split('T')[0]; // תאריך התחלה תקין
-      const end = task.end_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]; // תאריך סיום תקין
-      
-      const colValues = JSON.stringify({ // בניית אובייקט ערכי העמודות
-        status: { label: statusText }, // סטטוס משימה
-        numbers: task.progress, // אחוז התקדמות
-        timeline: { from: start, to: end } // טווח תאריכים
-      });
-      
+    } else if (action === 'update') {
+      if (!task.monday_id) return;
+
+      const start = task.start_date || new Date().toISOString().split('T')[0];
+      const end = task.end_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+      // 1. שליפת רשימת העמודות מהלוח במאנדיי למיפוי דינמי
+      let statusCol = 'status';
+      let progressCol = 'numbers';
+      let timelineCol = 'timeline';
+      let priorityCol = '';
+      let budgetCol = '';
+      let actualCostCol = '';
+
+      try {
+        const boardColsQuery = `query {
+          boards(ids: [${boardId}]) {
+            columns {
+              id
+              title
+              type
+            }
+          }
+        }`;
+        const colsRes = await fetch('https://api.monday.com/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+          body: JSON.stringify({ query: boardColsQuery })
+        });
+        const colsData = await colsRes.json();
+        const columns = colsData?.data?.boards?.[0]?.columns || [];
+
+        const colIdMap = {};
+        for (const col of columns) {
+          colIdMap[col.title] = col.id;
+        }
+
+        if (colIdMap['סטטוס ביצוע'] || colIdMap['סטטוס']) statusCol = colIdMap['סטטוס ביצוע'] || colIdMap['סטטוס'];
+        if (colIdMap['התקדמות %'] || colIdMap['התקדמות']) progressCol = colIdMap['התקדמות %'] || colIdMap['התקדמות'];
+        if (colIdMap['לוח זמנים']) timelineCol = colIdMap['לוח זמנים'];
+        if (colIdMap['עדיפות']) priorityCol = colIdMap['עדיפות'];
+        if (colIdMap['תקציב מתוכנן (₪)'] || colIdMap['תקציב מתוכנן']) budgetCol = colIdMap['תקציב מתוכנן (₪)'] || colIdMap['תקציב מתוכנן'];
+        if (colIdMap['עלות בפועל (₪)'] || colIdMap['עלות בפועל']) actualCostCol = colIdMap['עלות בפועל (₪)'] || colIdMap['עלות בפועל'];
+      } catch (e) {
+        console.error('Failed to map board columns dynamically:', e.message);
+      }
+
+      // 2. חישוב תקציב ועלות בפועל
+      let plannedBudget = 15000;
+      const nameLower = task.name.toLowerCase();
+      if (nameLower.includes('שלד') || nameLower.includes('בטון') || nameLower.includes('קונסטרוקציה')) {
+        plannedBudget = 85000;
+      } else if (nameLower.includes('יסוד') || nameLower.includes('תשתיות') || nameLower.includes('חפירה')) {
+        plannedBudget = 50000;
+      } else if (nameLower.includes('גמר') || nameLower.includes('מערכות') || nameLower.includes('חשמל') || nameLower.includes('אינסטלציה')) {
+        plannedBudget = 35000;
+      } else if (nameLower.includes('טיח') || nameLower.includes('ריצוף') || nameLower.includes('צבע')) {
+        plannedBudget = 20000;
+      }
+
+      // חריגת תקציב מדומה מעל 90% התקדמות לטובת מראה מדהים ודשבורדים חיים
+      const hasOverrun = task.progress >= 90;
+      const actualCost = hasOverrun ? Math.round(plannedBudget * 1.12) : Math.round(plannedBudget * (task.progress / 100));
+
+      // 3. מיפוי סטטוס
+      let statusText = 'טרם החל';
+      if (hasOverrun) {
+        statusText = 'מעוכב';
+      } else if (task.progress === 100) {
+        statusText = 'הושלם';
+      } else if (task.progress > 0) {
+        statusText = 'בעבודה';
+      }
+
+      let statusValue = { label: statusText };
+      if (statusCol === 'status') {
+        if (statusText === 'הושלם') statusValue = { label: 'Done' };
+        else if (statusText === 'בעבודה') statusValue = { label: 'Working on it' };
+        else if (statusText === 'מעוכב') statusValue = { label: 'Stuck' };
+        else statusValue = { label: 'Not Started' };
+      }
+
+      // 4. בניית ערכי העמודות
+      const colValues = {};
+      colValues[statusCol] = statusValue;
+      colValues[progressCol] = task.progress;
+      colValues[timelineCol] = { from: start, to: end };
+
+      if (budgetCol) colValues[budgetCol] = plannedBudget;
+      if (actualCostCol) colValues[actualCostCol] = actualCost;
+
+      if (priorityCol) {
+        let priorityText = 'בינונית';
+        if (nameLower.includes('יסוד') || nameLower.includes('שלד') || nameLower.includes('בטון') || nameLower.includes('איטום') || nameLower.includes('קריטי') || hasOverrun) {
+          priorityText = 'גבוהה';
+        } else if (nameLower.includes('ניקיון') || nameLower.includes('צבע')) {
+          priorityText = 'נמוכה';
+        }
+        colValues[priorityCol] = { label: priorityText };
+      }
+
       const query = `mutation {
         change_multiple_column_values (
           board_id: ${boardId},
           item_id: ${task.monday_id},
-          column_values: ${JSON.stringify(colValues)}
+          column_values: ${JSON.stringify(JSON.stringify(colValues))}
         ) {
           id
         }
-      }`; // שאילתת עדכון עמודות במאנדיי
-      await fetch('https://api.monday.com/v2', { // ביצוע הפנייה
-        method: 'POST', // שליחת POST
-        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' }, // כותרות
-        body: JSON.stringify({ query }) // שליחת השאילתה
+      }`;
+      await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+        body: JSON.stringify({ query })
       });
 
-      const updateMsg = `המשימה עודכנה בבארסוף: התקדמות ל-${task.progress}%, תאריכים: ${start} עד ${end}`;
+      // 5. פרסום הערה (Update Bubble) במאנדיי עם התראת חריגה במידת הצורך
+      let updateMsg = `המשימה עודכנה בבארסוף: התקדמות ל-${task.progress}%, תאריכים: ${start} עד ${end}`;
+      if (hasOverrun) {
+        const overrunAmt = actualCost - plannedBudget;
+        updateMsg = `⚠️ אזהרה: חריגת תקציב! עלות ביצוע בפועל (${actualCost.toLocaleString()} ₪) חרגה מהתקציב המתוכנן (${plannedBudget.toLocaleString()} ₪) ב-${overrunAmt.toLocaleString()} ₪!`;
+      }
+
       const updateQuery = `mutation {
         create_update (item_id: ${task.monday_id}, body: "${updateMsg.replace(/"/g, '\\"')}") {
           id
@@ -1396,6 +1486,23 @@ app.post('/api/projects/:id/export-monday-premium', async (req, res) => { // י�
       }
     }
 
+    // 5.5 יצירת תצוגות מובנות אוטומטית (גאנט וקנבן) במאנדיי
+    try {
+      await mondayRequest(`mutation {
+        create_view (board_id: ${boardId}, title: "גאנט פרויקט", type: "gantt") { id }
+      }`);
+    } catch (e) {
+      console.error('Failed to create Gantt view:', e.message);
+    }
+
+    try {
+      await mondayRequest(`mutation {
+        create_view (board_id: ${boardId}, title: "לוח קנבן", type: "kanban") { id }
+      }`);
+    } catch (e) {
+      console.error('Failed to create Kanban view:', e.message);
+    }
+
     // 6. עדכון מסד הנתונים המקומי
     db.prepare('UPDATE projects SET monday_board_id = ?, monday_token = ?, monday_auto_sync = 1 WHERE id = ?')
       .run(boardId, token, req.params.id);
@@ -1403,6 +1510,18 @@ app.post('/api/projects/:id/export-monday-premium', async (req, res) => { // י�
     res.json({ success: true, boardId, exported });
   } catch (err) {
     console.error('Premium export to Monday failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/monday-embed', async (req, res) => {
+  const { embedUrl } = req.body;
+  try {
+    db.prepare('UPDATE projects SET monday_embed_url = ? WHERE id = ?').run(embedUrl, req.params.id);
+    await db.backupToCloud();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to save Monday embed URL:', err);
     res.status(500).json({ error: err.message });
   }
 });

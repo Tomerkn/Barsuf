@@ -171,6 +171,7 @@ try { db.exec(`ALTER TABLE projects ADD COLUMN boq_json TEXT;`); } catch (e) {}
 try { db.exec(`ALTER TABLE projects ADD COLUMN monday_board_id TEXT;`); } catch (e) {} // עמודה לשמירת מזהה הלוח המסונכרן במאנדיי
 try { db.exec(`ALTER TABLE projects ADD COLUMN monday_token TEXT;`); } catch (e) {} // עמודה לשמירת מפתח הגישה של מאנדיי בשרת
 try { db.exec(`ALTER TABLE projects ADD COLUMN monday_auto_sync INTEGER DEFAULT 1;`); } catch (e) {} // עמודה לסימון האם מופעל סנכרון אוטומטי דו-כיווני (1=כן, 0=לא)
+try { db.exec(`ALTER TABLE projects ADD COLUMN monday_embed_url TEXT;`); } catch (e) {} // עמודה לשמירת כתובת ה-embed של לוח או דשבורד ממאנדיי
 
 // הוספת טבלת הגדרות כלליות למערכת (למשל סנכרון קבלנים גלובלי)
 db.exec(`

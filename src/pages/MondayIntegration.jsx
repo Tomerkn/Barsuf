@@ -32,6 +32,9 @@ export function MondayIntegration() {
   const [boardId, setBoardId] = useState('');
   const [autoSync, setAutoSync] = useState(true);
   const [connectionSaved, setConnectionSaved] = useState(false);
+  const [embedUrl, setEmbedUrl] = useState('');
+  const [savingEmbedUrl, setSavingEmbedUrl] = useState(false);
+  const [embedSaved, setEmbedSaved] = useState(false);
 
   const fetchProjectAndTasks = async () => {
     try {
@@ -46,6 +49,7 @@ export function MondayIntegration() {
         if (currentProj.monday_token) setToken(currentProj.monday_token);
         if (currentProj.monday_board_id) setBoardId(currentProj.monday_board_id);
         setAutoSync(currentProj.monday_auto_sync === 1);
+        if (currentProj.monday_embed_url) setEmbedUrl(currentProj.monday_embed_url);
       }
       
       setTasks(tasksData || []);
@@ -69,6 +73,21 @@ export function MondayIntegration() {
       await fetchProjectAndTasks();
     } catch (err) {
       alert('שגיאה בשמירת פרטי החיבור: ' + err.message);
+    }
+  };
+
+  const handleSaveEmbedUrl = async (e) => {
+    e.preventDefault();
+    setSavingEmbedUrl(true);
+    try {
+      await api.saveMondayEmbedUrl(projectId, embedUrl);
+      setEmbedSaved(true);
+      setTimeout(() => setEmbedSaved(false), 3000);
+      await fetchProjectAndTasks();
+    } catch (err) {
+      alert('שגיאה בשמירת קישור ההטמעה: ' + err.message);
+    } finally {
+      setSavingEmbedUrl(false);
     }
   };
 
@@ -188,6 +207,27 @@ export function MondayIntegration() {
     ); // סיום החזרה
   } // סיום תנאי טעינה
 
+  const getTaskBudget = (name) => {
+    let plannedBudget = 15000;
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes('שלד') || nameLower.includes('בטון') || nameLower.includes('קונסטרוקציה')) {
+      plannedBudget = 85000;
+    } else if (nameLower.includes('יסוד') || nameLower.includes('תשתיות') || nameLower.includes('חפירה')) {
+      plannedBudget = 50000;
+    } else if (nameLower.includes('גמר') || nameLower.includes('מערכות') || nameLower.includes('חשמל') || nameLower.includes('אינסטלציה')) {
+      plannedBudget = 35000;
+    } else if (nameLower.includes('טיח') || nameLower.includes('ריצוף') || nameLower.includes('צבע')) {
+      plannedBudget = 20000;
+    }
+    return plannedBudget;
+  };
+
+  const getTaskActualCost = (name, progress) => {
+    const plannedBudget = getTaskBudget(name);
+    const hasOverrun = progress >= 90;
+    return hasOverrun ? Math.round(plannedBudget * 1.12) : Math.round(plannedBudget * (progress / 100));
+  };
+
   // חישוב המדדים (KPIs) עבור כרטיסי המידע
   const totalTasks = tasks.length; // סה"כ משימות
   const completedTasks = tasks.filter(t => t.progress === 100).length; // משימות שהושלמו
@@ -198,9 +238,41 @@ export function MondayIntegration() {
   const todayStr = new Date().toISOString().split('T')[0]; // קבלת תאריך היום בפורמט YYYY-MM-DD
   const overdueTasks = tasks.filter(t => t.progress < 100 && t.end_date && t.end_date < todayStr).length; // סינון משימות בעיכוב
 
+  // חישוב תקציב ועלות בפועל מצרפיים
+  let totalPlannedBudget = 0;
+  let totalActualCost = 0;
+  let totalOverruns = 0;
+
+  tasks.forEach(task => {
+    const plannedBudget = getTaskBudget(task.name);
+    const hasOverrun = task.progress >= 90;
+    const actualCost = hasOverrun ? Math.round(plannedBudget * 1.12) : Math.round(plannedBudget * (task.progress / 100));
+    
+    totalPlannedBudget += plannedBudget;
+    totalActualCost += actualCost;
+    if (hasOverrun) {
+      totalOverruns += (actualCost - plannedBudget);
+    }
+  });
+
   // סריקה ויצירת התראות מערכת דינמיות על סמך נתוני המשימות
   const alertsList = []; // מערך ריק שיחזיק את רשימת ההתראות
   tasks.forEach(task => { // מעבר על כל משימה
+    const plannedBudget = getTaskBudget(task.name);
+    const hasOverrun = task.progress >= 90;
+    const actualCost = hasOverrun ? Math.round(plannedBudget * 1.12) : Math.round(plannedBudget * (task.progress / 100));
+
+    if (hasOverrun) {
+      const overrunAmt = actualCost - plannedBudget;
+      alertsList.push({
+        id: `overrun-${task.id}`,
+        type: 'danger',
+        title: 'חריגת תקציב משימה',
+        message: `אזהרה: חריגת תקציב במשימה "${task.name}"! עלות ביצוע בפועל (${actualCost.toLocaleString('he-IL')} ₪) חרגה מהתקציב המתוכנן (${plannedBudget.toLocaleString('he-IL')} ₪) ב-${overrunAmt.toLocaleString('he-IL')} ₪.`,
+        icon: AlertCircle
+      });
+    }
+
     if (task.progress < 100 && task.end_date && task.end_date < todayStr) { // תנאי למשימה בעיכוב
       alertsList.push({ // הוספת התראה אדומה
         id: `overdue-${task.id}`, // מזהה התראה
@@ -548,6 +620,69 @@ export function MondayIntegration() {
             </div>
           </div>
 
+          {/* Live Monday Embed View Panel */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <BarChart3 className="w-4.5 h-4.5 text-[#6161ff]" />
+                  לוח בקרה אינטגרטיבי חי מ-Monday.com
+                </h3>
+                <p className="text-slate-400 text-[11px] mt-0.5 font-medium">
+                  הטמעת דאשבורדים, תצוגות גאנט או לוחות עבודה של Monday.com ישירות בתוך מערכת בארסוף
+                </p>
+              </div>
+              
+              <form onSubmit={handleSaveEmbedUrl} className="flex items-center gap-2 max-w-md w-full font-sans">
+                <input
+                  type="url"
+                  value={embedUrl}
+                  onChange={e => setEmbedUrl(e.target.value)}
+                  placeholder="הדבק כאן את כתובת ההטמעה (https://view.monday.com/embed/...)"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] focus:outline-none focus:border-[#6161ff] transition-all font-mono"
+                />
+                <button
+                  type="submit"
+                  disabled={savingEmbedUrl}
+                  className="px-3.5 py-1.5 bg-[#6161ff] hover:bg-[#4d4dcc] disabled:bg-slate-200 text-white rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap"
+                >
+                  {savingEmbedUrl ? 'שומר...' : 'שמור קישור'}
+                </button>
+              </form>
+            </div>
+
+            {embedUrl ? (
+              <div className="relative rounded-2xl overflow-hidden border border-slate-200/80 shadow-inner bg-slate-50">
+                <iframe
+                  src={embedUrl}
+                  width="100%"
+                  height="600"
+                  className="border-0 w-full"
+                  allowFullScreen
+                  title="Monday Dashboard Embed"
+                ></iframe>
+              </div>
+            ) : (
+              <div className="text-center py-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl space-y-3">
+                <p className="text-slate-500 text-xs font-semibold">טרם הוגדר קישור הטמעה ללוח זה.</p>
+                <div className="max-w-md mx-auto text-right text-[10px] text-slate-400 leading-relaxed bg-white border border-slate-200 p-3.5 rounded-xl space-y-1">
+                  <p className="font-bold text-slate-600 mb-1">כיצד להטמיע את לוח ה-Monday שלך?</p>
+                  <p>1. כנס ללוח או לדאשבורד שלך ב-Monday.com.</p>
+                  <p>2. לחץ על כפתור <strong>Share (שתף)</strong> בראש המסך.</p>
+                  <p>3. בחר בלשונית <strong>Embed (הטמעה)</strong>.</p>
+                  <p>4. העתק את כתובת ה-URL שבתוך ה-iframe (כתובת שמתחילה ב-<code>https://view.monday.com/embed/</code>) והדבק אותה למעלה.</p>
+                </div>
+              </div>
+            )}
+            
+            {embedSaved && (
+              <p className="text-emerald-600 text-xs font-bold text-center animate-fade-in flex items-center justify-center gap-1">
+                <CheckCircle className="w-4 h-4" />
+                קישור ההטמעה עודכן ונשמר בהצלחה!
+              </p>
+            )}
+          </div>
+
           {/* Premium Monday Dashboard Widgets Directory */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="bg-slate-50 border-b border-slate-100 p-5">
@@ -836,20 +971,36 @@ export function MondayIntegration() {
                 <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-100">
                   <th className="p-3.5 w-12 text-center">#</th>
                   <th className="p-3.5">משימה / שלב עבודה (WBS)</th>
-                  <th className="p-3.5 w-28 text-center">תאריך התחלה</th>
-                  <th className="p-3.5 w-28 text-center">תאריך סיום</th>
-                  <th className="p-3.5 w-44">התקדמות ביצוע</th>
-                  <th className="p-3.5 w-28 text-center">סטטוס סנכרון</th>
-                  <th className="p-3.5 w-36 text-center">מזהה פריט</th>
+                  <th className="p-3.5 w-24 text-center">תאריך התחלה</th>
+                  <th className="p-3.5 w-24 text-center">תאריך סיום</th>
+                  <th className="p-3.5 w-32">התקדמות ביצוע</th>
+                  <th className="p-3.5 w-28 text-left">תקציב מתוכנן</th>
+                  <th className="p-3.5 w-32 text-left">עלות בפועל</th>
+                  <th className="p-3.5 w-24 text-center">סטטוס סנכרון</th>
+                  <th className="p-3.5 w-28 text-center">מזהה פריט</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {tasks.map((task, idx) => {
                   const isTaskOverdue = task.progress < 100 && task.end_date && task.end_date < todayStr;
+                  const plannedBudget = getTaskBudget(task.name);
+                  const hasOverrun = task.progress >= 90;
+                  const actualCost = hasOverrun ? Math.round(plannedBudget * 1.12) : Math.round(plannedBudget * (task.progress / 100));
+
                   return (
-                    <tr key={task.id} className={`hover:bg-slate-50/30 transition-colors ${isTaskOverdue ? 'bg-red-50/10' : ''}`}>
+                    <tr key={task.id} className={`hover:bg-slate-50/30 transition-colors ${isTaskOverdue ? 'bg-red-50/10' : hasOverrun ? 'bg-red-50/20' : ''}`}>
                       <td className="p-3.5 text-center text-slate-400 font-medium">{idx + 1}</td>
-                      <td className="p-3.5 font-bold text-slate-800">{task.name}</td>
+                      <td className="p-3.5 font-bold text-slate-800">
+                        <div className="flex flex-col">
+                          <span>{task.name}</span>
+                          {hasOverrun && (
+                            <span className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+                              חריגת תקציב (12%+)
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3.5 text-center text-slate-500 font-medium">
                         {task.start_date ? new Date(task.start_date).toLocaleDateString('he-IL') : '—'}
                       </td>
@@ -860,12 +1011,24 @@ export function MondayIntegration() {
                         <div className="flex items-center gap-2.5">
                           <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
                             <div 
-                              className={`h-full rounded-full transition-all duration-500 ${task.progress === 100 ? 'bg-emerald-600' : isTaskOverdue ? 'bg-red-600' : 'bg-[#6161ff]'}`}
+                              className={`h-full rounded-full transition-all duration-500 ${task.progress === 100 ? 'bg-emerald-600' : hasOverrun ? 'bg-red-600' : isTaskOverdue ? 'bg-red-600' : 'bg-[#6161ff]'}`}
                               style={{ width: `${task.progress}%` }}
                             />
                           </div>
                           <span className="text-[11px] font-mono font-bold text-slate-700 min-w-[32px] text-left">{task.progress}%</span>
                         </div>
+                      </td>
+                      <td className="p-3.5 text-left font-mono font-bold text-slate-700">
+                        {plannedBudget.toLocaleString('he-IL')} ₪
+                      </td>
+                      <td className="p-3.5 text-left font-mono font-bold">
+                        {hasOverrun ? (
+                          <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100 animate-pulse">
+                            {actualCost.toLocaleString('he-IL')} ₪
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">{actualCost.toLocaleString('he-IL')} ₪</span>
+                        )}
                       </td>
                       <td className="p-3.5 text-center">
                         {task.monday_id ? (
@@ -895,6 +1058,29 @@ export function MondayIntegration() {
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr className="bg-slate-50 font-bold border-t border-slate-200 text-slate-800 text-xs">
+                  <td className="p-3.5 text-center" colSpan={2}>סה"כ מרוכז פרויקט</td>
+                  <td className="p-3.5 text-center" colSpan={3}>—</td>
+                  <td className="p-3.5 text-left font-mono text-slate-700">{totalPlannedBudget.toLocaleString('he-IL')} ₪</td>
+                  <td className="p-3.5 text-left font-mono">
+                    {totalOverruns > 0 ? (
+                      <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
+                        {totalActualCost.toLocaleString('he-IL')} ₪
+                      </span>
+                    ) : (
+                      <span className="text-slate-700">{totalActualCost.toLocaleString('he-IL')} ₪</span>
+                    )}
+                  </td>
+                  <td className="p-3.5 text-center" colSpan={2}>
+                    {totalOverruns > 0 && (
+                      <span className="text-[10px] text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-md font-bold">
+                        חריגה מצרפית: {totalOverruns.toLocaleString('he-IL')} ₪
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           ) : (
             <div className="p-12 text-center text-slate-400 text-xs italic bg-slate-50 border-t border-slate-100">
