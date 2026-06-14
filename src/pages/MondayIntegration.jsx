@@ -29,7 +29,7 @@ export function MondayIntegration() {
   const [creatingTask, setCreatingTask] = useState(false);
   
   const [token, setToken] = useState('eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjY2ODM4MDUyOCwiYWFpIjoxMSwidWlkIjoxMDMzMjkyNzQsImlhZCI6IjIwMjYtMDYtMDhUMTg6MTQ6MDIuMDAwWiIsInBlciI6Im1lOndyaXRlIiwiYWN0aWQiOjM1MDE1MDc4LCJyZ24iOiJldWMxIn0.MwVqTuydRsvQqwg02Gt4vc6yr5SkHwwgBQXP4735wNE');
-  const [boardId, setBoardId] = useState('');
+  const [boardId, setBoardId] = useState('5098147203');
   const [autoSync, setAutoSync] = useState(true);
   const [connectionSaved, setConnectionSaved] = useState(false);
   const [embedUrl, setEmbedUrl] = useState('');
@@ -365,135 +365,59 @@ export function MondayIntegration() {
 
       {/* אשף חיבור מהיר ל-Monday.com או תצוגת הגדרות סנכרון */}
       {!boardId ? (
-        // === Disconnected / Wizard State ===
-        <div className="space-y-6">
-          <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 flex items-center justify-between">
+        // === Disconnected / Clean Onboarding State ===
+        <div className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-slate-800">הגדרת חיבור ראשונית</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5 font-medium">פרויקט זה אינו מחובר ל-Monday.com. בחר באחד ממסלולי החיבור להלן להגדרת הלוח.</p>
+              <h2 className="text-sm font-bold text-slate-800">הגדרת חיבור ל-Monday.com</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5 font-medium">הגדר את פרטי החיבור ללוח הבנייה והמכרזים של הפרויקט</p>
             </div>
-            <span className="px-2.5 py-1 bg-slate-200/50 text-slate-600 rounded-lg text-[10px] font-bold">לא מחובר</span>
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold">לא מחובר</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Option A: Premium */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:border-emerald-300 transition-all shadow-xs">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">מומלץ</span>
-                  <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-bold font-mono">1</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-xs text-slate-800">לוח בנייה פרימיום</h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                    חלוקה אוטומטית ל-5 שלבי הבנייה המרכזיים. יצירת עמודות מתקדמות עבור תקציב מתוכנן, עלויות ביצוע, רמת עדיפות, סטטוס ביצוע ולוחות זמנים.
-                  </p>
-                </div>
-                <div className="space-y-1.5 pt-1">
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase">מפתח API (Token)</label>
-                  <input
-                    type="password"
-                    value={token}
-                    onChange={e => setToken(e.target.value)}
-                    placeholder="הזן API Token"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:bg-white transition-all"
-                  />
-                </div>
+          <div className="p-6 space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700">מפתח גישה (API Token)</label>
+                <input
+                  type="text"
+                  value={token}
+                  onChange={e => setToken(e.target.value)}
+                  placeholder="הזן API Token של Monday.com"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[#6161ff] focus:bg-white transition-all text-slate-600"
+                />
               </div>
-              <div className="pt-4">
-                <button
-                  type="button"
-                  onClick={handlePremiumProvision}
-                  disabled={provisioningPremium || !token}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-                >
-                  {provisioningPremium ? 'יוצר לוח בנייה פרימיום...' : 'הקם לוח פרימיום'}
-                </button>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700">מזהה לוח בנייה (Board ID)</label>
+                <input
+                  type="text"
+                  value={boardId}
+                  onChange={e => setBoardId(e.target.value)}
+                  placeholder="הזן מזהה לוח (למשל: 5098147203)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[#6161ff] focus:bg-white transition-all text-slate-600"
+                />
               </div>
             </div>
 
-            {/* Option B: Basic */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:border-amber-300 transition-all shadow-xs">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">בסיסי</span>
-                  <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-bold font-mono">2</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-xs text-slate-800">לוח משימות בסיסי</h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                    ייצוא רשימת משימות WBS שטוחה ופשוטה ל-Monday.com, עם עמודת לוח זמנים (Timeline) ואחוז התקדמות בלבד.
-                  </p>
-                </div>
-                <div className="space-y-1.5 pt-1">
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase">מפתח API (Token)</label>
-                  <input
-                    type="password"
-                    value={token}
-                    onChange={e => setToken(e.target.value)}
-                    placeholder="הזן API Token"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-amber-500 focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-              <div className="pt-4">
-                <button
-                  type="button"
-                  onClick={handleAutoProvision}
-                  disabled={provisioning || !token}
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-                >
-                  {provisioning ? 'מקים לוח בסיסי...' : 'הקם לוח בסיסי'}
-                </button>
-              </div>
-            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleSaveCredentials}
+                disabled={!token || !boardId}
+                className="w-full sm:w-auto px-5 py-2.5 bg-[#6161ff] hover:bg-[#4d4dcc] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                חבר לוח קיים וסנכרן
+              </button>
 
-            {/* Option C: Manual Link */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:border-[#6161ff] transition-all shadow-xs">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">קישור ידני</span>
-                  <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-bold font-mono">3</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-xs text-slate-800">קישור ללוח קיים</h3>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                    קישור ידני של לוח משימות קיים מתוך חשבון ה-Monday.com שלך על ידי הזנת מפתח ה-API ומזהה הלוח באופן ספציפי.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase font-mono">API Token</label>
-                    <input
-                      type="password"
-                      value={token}
-                      onChange={e => setToken(e.target.value)}
-                      placeholder="מפתח גישה"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-[#6161ff] focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase font-mono">Board ID</label>
-                    <input
-                      type="text"
-                      value={boardId}
-                      onChange={e => setBoardId(e.target.value)}
-                      placeholder="מזהה הלוח"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-[#6161ff] focus:bg-white transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="pt-4">
-                <button
-                  type="button"
-                  onClick={handleSaveCredentials}
-                  disabled={!token || !boardId}
-                  className="w-full py-2.5 bg-[#6161ff] hover:bg-[#4d4dcc] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-                >
-                  קשר לוח קיים
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handlePremiumProvision}
+                disabled={provisioningPremium || !token}
+                className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                {provisioningPremium ? 'מקים לוח פרימיום...' : 'או הקם לוח פרימיום חדש אוטומטית'}
+              </button>
             </div>
           </div>
         </div>
