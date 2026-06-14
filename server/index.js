@@ -839,17 +839,7 @@ async function syncContractorToMonday(contractor, action, extra = {}) {
         body: JSON.stringify({ query })
       });
 
-      const updateMsg = `עדכון פרטי קבלן משנה: התמחות ב-${contractor.specialization || ''}, טלפון ליצירת קשר: ${contractor.phone || 'לא עודכן'}, דוא"ל: ${contractor.email || 'לא עודכן'}.`;
-      const updateQuery = `mutation {
-        create_update (item_id: ${contractor.monday_id}, body: "${updateMsg.replace(/"/g, '\\"')}") {
-          id
-        }
-      }`;
-      await fetch('https://api.monday.com/v2', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
-        body: JSON.stringify({ query: updateQuery })
-      });
+      // רק מעדכנים עמודות, ללא יצירת הערת ספאם (אנושי)
     } else if (action === 'delete') {
       const mondayId = extra.mondayId || contractor.monday_id;
       if (!mondayId) return;
@@ -1014,23 +1004,22 @@ async function syncTaskToMonday(projectId, task, action, extra = {}) { // הגד
         body: JSON.stringify({ query })
       });
 
-      // 5. פרסום הערה (Update Bubble) במאנדיי עם התראת חריגה במידת הצורך
-      let updateMsg = `עדכון סטטוס ביצוע: המשימה עודכנה ל-${task.progress}% התקדמות. לוח זמנים מעודכן: ${start} עד ${end}.`;
+      // 5. פרסום הערה (Update Bubble) במאנדיי במקרה של חריגת תקציב בלבד (אנושי)
       if (hasOverrun) {
         const overrunAmt = actualCost - plannedBudget;
-        updateMsg = `שים לב: חריגה מתקציב המטרה במשימה זו. עלות הביצוע בפועל הגיעה ל-${actualCost.toLocaleString()} ₪ לעומת תקציב מתוכנן של ${plannedBudget.toLocaleString()} ₪ (חריגה של ${overrunAmt.toLocaleString()} ₪). נדרש תיאום מול מנהל העבודה בשטח ואישור חריגות.`;
-      }
+        const updateMsg = `שים לב: חריגה מתקציב המטרה במשימה זו. עלות הביצוע בפועל הגיעה ל-${actualCost.toLocaleString()} ₪ לעומת תקציב מתוכנן של ${plannedBudget.toLocaleString()} ₪ (חריגה של ${overrunAmt.toLocaleString()} ₪). נדרש תיאום מול מנהל העבודה בשטח ואישור חריגות.`;
 
-      const updateQuery = `mutation {
-        create_update (item_id: ${task.monday_id}, body: "${updateMsg.replace(/"/g, '\\"')}") {
-          id
-        }
-      }`;
-      await fetch('https://api.monday.com/v2', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
-        body: JSON.stringify({ query: updateQuery })
-      });
+        const updateQuery = `mutation {
+          create_update (item_id: ${task.monday_id}, body: "${updateMsg.replace(/"/g, '\\"')}") {
+            id
+          }
+        }`;
+        await fetch('https://api.monday.com/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+          body: JSON.stringify({ query: updateQuery })
+        });
+      }
     } else if (action === 'delete') { // מקרה של מחיקת משימה
       const mondayId = extra.mondayId || task.monday_id; // קבלת מזהה מאנדיי למחיקה
       if (!mondayId) return; // יציאה אם אין מזהה
@@ -1473,14 +1462,7 @@ app.post('/api/projects/:id/export-monday-premium', async (req, res) => { // י�
         }`;
         await mondayRequest(updateColsQuery);
 
-        // הוספת הערה התחלתית (בועת עדכון)
-        const updateMsg = `המשימה סונכרנה בהצלחה ללוח העבודה. סטטוס התקדמות נוכחי: %${task.progress}.`;
-        const updateQuery = `mutation {
-          create_update (item_id: ${mondayItemId}, body: "${updateMsg.replace(/"/g, '\\"')}") {
-            id
-          }
-        }`;
-        await mondayRequest(updateQuery);
+        // רק מעדכנים עמודות, ללא יצירת הערת ספאם (אנושי)
 
         exported++;
       }
