@@ -660,6 +660,170 @@ app.put('/api/tenders/:id', (req, res) => {
   }
 });
 
+app.get('/api/notifications', (req, res) => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date(todayStr);
+    const alerts = [];
+
+    // ── 1. משימות שעברו את תאריך הסיום ולא הושלמו ──────────────────────────
+    const overdueTasks = db.prepare(`
+      SELECT t.*, p.name as project_name 
+      FROM tasks t JOIN projects p ON t.project_id = p.id
+      WHERE t.progress < 100 AND t.end_date < ?
+    `).all(todayStr);
+    overdueTasks.forEach(task => {
+      const daysLate = Math.floor((today - new Date(task.end_date)) / 86400000);
+      alerts.push({
+        id: `overdue-${task.id}`,
+        type: 'danger',
+        title: `משימה באיחור של ${daysLate} ימים`,
+        message: `"${task.name}" בפרויקט "${task.project_name}" הייתה אמורה להסתיים ב-${new Date(task.end_date).toLocaleDateString('he-IL')}. התקדמות: ${task.progress}%.`,
+        projectId: task.project_id,
+        category: 'tasks'
+      });
+    });
+
+    // ── 2. משימות שמסתיימות בשבוע הקרוב ────────────────────────────────────
+    const weekAhead = new Date(today); weekAhead.setDate(weekAhead.getDate() + 7);
+    const weekAheadStr = weekAhead.toISOString().split('T')[0];
+    const nearDueTasks = db.prepare(`
+      SELECT t.*, p.name as project_name
+      FROM tasks t JOIN projects p ON t.project_id = p.id
+      WHERE t.progress < 100 AND t.end_date >= ? AND t.end_date <= ?
+    `).all(todayStr, weekAheadStr);
+    nearDueTasks.forEach(task => {
+      const daysLeft = Math.floor((new Date(task.end_date) - today) / 86400000);
+      alerts.push({
+        id: `neardue-${task.id}`,
+        type: 'warning',
+        title: `משימה מסתיימת בעוד ${daysLeft} ימים`,
+        message: `"${task.name}" בפרויקט "${task.project_name}" מסתיימת ב-${new Date(task.end_date).toLocaleDateString('he-IL')}. התקדמות נוכחית: ${task.progress}%.`,
+        projectId: task.project_id,
+        category: 'tasks'
+      });
+    });
+
+    // ── 3. חריגת תקציב (הוצאות > תקציב מאושר) ──────────────────────────────
+    const budgetOverruns = db.prepare(`
+      SELECT b.id, b.category, b.total_amount, p.name as project_name, p.id as project_id,
+             COALESCE(SUM(e.amount), 0) as spent
+      FROM budgets b
+      JOIN projects p ON b.project_id = p.id
+      LEFT JOIN expenses e ON e.budget_id = b.id
+      GROUP BY b.id
+      HAVING spent > b.total_amount
+    `).all();
+    budgetOverruns.forEach(b => {
+      const overBy = Math.round(b.spent - b.total_amount);
+      alerts.push({
+        id: `budget-overrun-${b.id}`,
+        type: 'danger',
+        title: `חריגת תקציב — ${b.category}`,
+        message: `בפרויקט "${b.project_name}": הוצאות עברו את התקציב ב-${overBy.toLocaleString('he-IL')} ₪. תקציב: ${b.total_amount.toLocaleString('he-IL')} ₪ | הוצאה: ${Math.round(b.spent).toLocaleString('he-IL')} ₪.`,
+        projectId: b.project_id,
+        category: 'budget'
+      });
+    });
+
+    // ── 4. אזהרת תקציב (הוצאות > 80% מהתקציב) ──────────────────────────────
+    const budgetWarnings = db.prepare(`
+      SELECT b.id, b.category, b.total_amount, p.name as project_name, p.id as project_id,
+             COALESCE(SUM(e.amount), 0) as spent
+      FROM budgets b
+      JOIN projects p ON b.project_id = p.id
+      LEFT JOIN expenses e ON e.budget_id = b.id
+      GROUP BY b.id
+      HAVING spent <= b.total_amount AND spent > b.total_amount * 0.8
+    `).all();
+    budgetWarnings.forEach(b => {
+      const pct = Math.round((b.spent / b.total_amount) * 100);
+      alerts.push({
+        id: `budget-warn-${b.id}`,
+        type: 'warning',
+        title: `קרוב לגבול תקציב — ${b.category}`,
+        message: `בפרויקט "${b.project_name}": נוצל ${pct}% מהתקציב. נותרו ${Math.round(b.total_amount - b.spent).toLocaleString('he-IL')} ₪ בלבד.`,
+        projectId: b.project_id,
+        category: 'budget'
+      });
+    });
+
+    // ── 5. קריאות אחריות פתוחות / בטיפול ─────────────────────────────────
+    const openWarranty = db.prepare(`
+      SELECT w.*, p.name as project_name
+      FROM warranty_tickets w JOIN projects p ON w.project_id = p.id
+      WHERE w.status IN ('פתוח','בטיפול')
+    `).all();
+    openWarranty.forEach(w => {
+      const daysOpen = Math.floor((today - new Date(w.open_date)) / 86400000);
+      alerts.push({
+        id: `warranty-${w.id}`,
+        type: w.status === 'פתוח' ? 'danger' : 'warning',
+        title: `קריאת אחריות ${w.status} — ${daysOpen} ימים`,
+        message: `לקוח: ${w.client_name} (${w.apartment}). תיאור: "${w.issue_description.substring(0, 80)}..."`,
+        projectId: w.project_id,
+        category: 'warranty'
+      });
+    });
+
+    // ── 6. פרויקטים בעיכוב ──────────────────────────────────────────────────
+    const delayedProjects = db.prepare(`
+      SELECT * FROM projects WHERE status = 'עיכוב'
+    `).all();
+    delayedProjects.forEach(p => {
+      alerts.push({
+        id: `delayed-proj-${p.id}`,
+        type: 'danger',
+        title: `פרויקט בעיכוב`,
+        message: `הפרויקט "${p.name}" מסומן כ"עיכוב". יש לבדוק ולעדכן מצב.`,
+        projectId: p.id,
+        category: 'projects'
+      });
+    });
+
+    // ── 7. הזמנות "בדרך" מעל 7 ימים ────────────────────────────────────────
+    const pendingOrders = db.prepare(`
+      SELECT o.*, p.name as project_name
+      FROM orders o JOIN projects p ON o.project_id = p.id
+      WHERE o.status = 'בדרך' AND o.order_date < ?
+    `).all(new Date(today.getTime() - 7 * 86400000).toISOString().split('T')[0]);
+    pendingOrders.forEach(o => {
+      const days = Math.floor((today - new Date(o.order_date)) / 86400000);
+      alerts.push({
+        id: `order-pending-${o.id}`,
+        type: 'warning',
+        title: `הזמנה ממתינה — ${days} ימים`,
+        message: `"${o.item_description}" מ${o.supplier_name} בפרויקט "${o.project_name}". הוזמן ב-${new Date(o.order_date).toLocaleDateString('he-IL')} — עדיין לא הגיע.`,
+        projectId: o.project_id,
+        category: 'orders'
+      });
+    });
+
+    // ── 8. פרויקט פעיל ללא יומן עבודה ב-5 ימים אחרונים ──────────────────
+    const fiveDaysAgo = new Date(today.getTime() - 5 * 86400000).toISOString().split('T')[0];
+    const activeProjects = db.prepare(`SELECT * FROM projects WHERE status IN ('תקין','עיכוב')`).all();
+    activeProjects.forEach(p => {
+      const lastLog = db.prepare(`SELECT MAX(date) as last FROM daily_logs WHERE project_id=?`).get(p.id);
+      if (!lastLog.last || lastLog.last < fiveDaysAgo) {
+        alerts.push({
+          id: `no-log-${p.id}`,
+          type: 'warning',
+          title: `אין יומן עבודה — 5 ימים ויותר`,
+          message: `לפרויקט "${p.name}" לא הוזן יומן עבודה מאז ${lastLog.last ? new Date(lastLog.last).toLocaleDateString('he-IL') : 'תחילת הפרויקט'}.`,
+          projectId: p.id,
+          category: 'logs'
+        });
+      }
+    });
+
+    alerts.sort((a, b) => (a.type === 'danger' ? -1 : b.type === 'danger' ? 1 : 0));
+    res.json(alerts);
+  } catch (e) {
+    console.error('Failed to calculate notifications:', e);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
 app.put('/api/:resourceType/:id', (req, res) => {
   // Generic fallback for PUT (simplified for safety, normally explicitly defined)
   res.json({ success: true, warning: 'Generic update placeholder' });
@@ -683,42 +847,6 @@ app.delete('/api/:resourceType/:id', async (req, res) => {
   }
 });
 
-app.get('/api/notifications', (req, res) => {
-  try {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tasks = db.prepare(`
-      SELECT t.*, p.name as project_name 
-      FROM tasks t 
-      JOIN projects p ON t.project_id = p.id
-    `).all();
-
-    const alerts = [];
-    tasks.forEach(task => {
-      if (task.progress < 100 && task.end_date && task.end_date < todayStr) {
-        alerts.push({
-          id: `overdue-${task.id}`,
-          type: 'danger',
-          title: 'משימה בעיכוב ביצוע',
-          message: `המשימה "${task.name}" בפרויקט "${task.project_name}" הייתה אמורה להסתיים ב-${new Date(task.end_date).toLocaleDateString('he-IL')}, אך התקדמותה היא ${task.progress}% בלבד.`,
-          projectId: task.project_id
-        });
-      } else if (task.progress === 0 && task.start_date && task.start_date < todayStr) {
-        alerts.push({
-          id: `start-delay-${task.id}`,
-          type: 'warning',
-          title: 'עיכוב בתחילת עבודה',
-          message: `המשימה "${task.name}" בפרויקט "${task.project_name}" תוכננה להתחיל ב-${new Date(task.start_date).toLocaleDateString('he-IL')}, אך טרם החלה.`,
-          projectId: task.project_id
-        });
-      }
-    });
-
-    res.json(alerts);
-  } catch (e) {
-    console.error('Failed to calculate notifications:', e);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
-  }
-});
 
 // Daily Logs API
 app.get('/api/daily-logs', (req, res) => {

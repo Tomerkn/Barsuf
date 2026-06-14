@@ -1,4 +1,4 @@
-import db from './db.js'; // מביאים את החיבור למסד הנתונים
+import db from './db.js';
 import { uploadFileToCloud } from './storage.js';
 import fs from 'fs';
 import path from 'path';
@@ -11,281 +11,427 @@ export async function reseedDatabase(force = false) {
     return;
   }
 
-  console.log('Seeding database with matching Monday presentation data...');
+  console.log('Seeding database — 6 Sharon private home projects...');
 
-  // יצירת קבצי דמו פיזיים והעלאתם לענן כדי למנוע שגיאות קריאה של ה-PDF
   const uploadsDir = '/tmp/barsuf_data/uploads';
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
   const rootDir = process.cwd();
   const testPdfPath = path.join(rootDir, 'test_tender.pdf');
-  
   if (fs.existsSync(testPdfPath)) {
-    const file1 = '1718228000000-tender_school_dekel.pdf';
-    const file2 = '1718229000000-tender_sports_hall_netanya.pdf';
-    const path1 = path.join(uploadsDir, file1);
-    const path2 = path.join(uploadsDir, file2);
-
-    fs.copyFileSync(testPdfPath, path1);
-    fs.copyFileSync(testPdfPath, path2);
-
-    console.log('☁️ Copying and uploading dummy tender PDFs...');
-    await uploadFileToCloud(path1, file1).catch(e => console.error(`Failed to upload ${file1} to GCS:`, e.message));
-    await uploadFileToCloud(path2, file2).catch(e => console.error(`Failed to upload ${file2} to GCS:`, e.message));
+    const demoFiles = ['1718228000000-tender_a.pdf','1718229000000-tender_b.pdf','1718230000000-tender_c.pdf','1718231000000-tender_d.pdf'];
+    for (const f of demoFiles) {
+      const p = path.join(uploadsDir, f);
+      fs.copyFileSync(testPdfPath, p);
+      await uploadFileToCloud(p, f).catch(e => console.error(`Upload ${f} failed:`, e.message));
+    }
   }
 
   if (force) {
-    console.log('Wiping database tables...');
+    console.log('Wiping all tables...');
     db.prepare("PRAGMA foreign_keys = OFF").run();
-    db.prepare("DELETE FROM projects").run();
-    db.prepare("DELETE FROM budgets").run();
-    db.prepare("DELETE FROM expenses").run();
-    db.prepare("DELETE FROM incomes").run();
-    db.prepare("DELETE FROM orders").run();
-    db.prepare("DELETE FROM daily_logs").run();
-    db.prepare("DELETE FROM tasks").run();
-    db.prepare("DELETE FROM warranty_tickets").run();
-    db.prepare("DELETE FROM contractors").run();
-    db.prepare("DELETE FROM tenders").run();
-    db.prepare("DELETE FROM files").run();
-    try {
-      db.prepare("DELETE FROM sqlite_sequence").run();
-    } catch (e) {
-      console.warn("Failed to reset sqlite_sequence:", e.message);
-    }
+    ['warranty_tickets','orders','expenses','incomes','tasks','daily_logs','budgets','files','projects','tenders','contractors'].forEach(t => db.prepare(`DELETE FROM ${t}`).run());
+    try { db.prepare("DELETE FROM sqlite_sequence").run(); } catch(e) {}
     db.prepare("PRAGMA foreign_keys = ON").run();
   }
 
-  // --- 8 קבלנים תואמי Monday Board 5098147406 ---
-  const insertContractor = db.prepare("INSERT INTO contractors (name, specialization, phone, email, monday_id) VALUES (?, ?, ?, ?, ?)");
-  const c1 = insertContractor.run("אלון פיתוח וגינון בע\"מ", "פיתוח חוץ", "052-1111111", "alon@landscape.co.il", "2995723221");
-  const c2 = insertContractor.run("גיא עבודות עפר ופיתוח בע\"מ", "פיתוח חוץ", "053-2222222", "guy@earthworks.co.il", "2995712847");
-  const c3 = insertContractor.run("א.א אינסטלציה וכיבוי אש בע\"מ", "אינסטלציה", "054-3333333", "aa@plumbing.co.il", "2995731118");
-  const c4 = insertContractor.run("אורן חשמל ומערכות תקשורת בע\"מ", "חשמל", "050-4444444", "oren@electric.co.il", "2995741823");
-  const c5 = insertContractor.run("שחף עבודות גבס וצבע בע\"מ", "גבס וצבע", "058-5555555", "shahaf@drywall.co.il", "2995731056");
-  const c6 = insertContractor.run("רפאל ריצוף וחיפוי בע\"מ", "ריצוף", "052-6666666", "rafael@tiling.co.il", "2995712986");
-  const c7 = insertContractor.run("בנייני ברזל ויציקות בע\"מ", "שלד", "053-7777777", "barzelyezika@skeleton.co.il", "2995741827");
-  const c8 = insertContractor.run("סלע יציקות מילויים בע\"מ", "שלד", "054-8888888", "sela@concrete.co.il", "2995741828");
+  // ══════════════════════════════════════════════════════════════
+  // קבלנים (תואם לוח Monday 5098147406)
+  // ══════════════════════════════════════════════════════════════
+  const IC = db.prepare("INSERT INTO contractors (name, specialization, phone, email, monday_id) VALUES (?, ?, ?, ?, ?)");
+  const c1 = IC.run("אלון פיתוח וגינון בע\"מ",         "פיתוח חוץ",   "052-1111111", "alon@landscape.co.il",      "2995723221");
+  const c2 = IC.run("גיא עבודות עפר ופיתוח בע\"מ",     "עפר ופיתוח",  "053-2222222", "guy@earthworks.co.il",      "2995712847");
+  const c3 = IC.run("א.א אינסטלציה וכיבוי אש בע\"מ",  "אינסטלציה",   "054-3333333", "aa@plumbing.co.il",         "2995731118");
+  const c4 = IC.run("אורן חשמל ומערכות תקשורת בע\"מ", "חשמל",         "050-4444444", "oren@electric.co.il",       "2995741823");
+  const c5 = IC.run("שחף עבודות גבס וצבע בע\"מ",      "גבס וצבע",    "058-5555555", "shahaf@drywall.co.il",      "2995731056");
+  const c6 = IC.run("רפאל ריצוף וחיפוי בע\"מ",         "ריצוף",        "052-6666666", "rafael@tiling.co.il",       "2995712986");
+  const c7 = IC.run("בנייני ברזל ויציקות בע\"מ",       "שלד",          "053-7777777", "barzelyezika@skeleton.co.il","2995741827");
+  const c8 = IC.run("סלע יציקות מילויים בע\"מ",        "שלד",          "054-8888888", "sela@concrete.co.il",       "2995741828");
+  const [cId1,cId2,cId3,cId4,cId5,cId6,cId7,cId8] = [c1,c2,c3,c4,c5,c6,c7,c8].map(r=>r.lastInsertRowid);
 
-  const contId1 = c1.lastInsertRowid;
-  const contId2 = c2.lastInsertRowid;
-  const contId3 = c3.lastInsertRowid;
-  const contId4 = c4.lastInsertRowid;
-  const contId5 = c5.lastInsertRowid;
-  const contId6 = c6.lastInsertRowid;
-  const contId7 = c7.lastInsertRowid;
-  const contId8 = c8.lastInsertRowid;
+  // ══════════════════════════════════════════════════════════════
+  // פרויקטים — 6 בתים פרטיים באזור השרון
+  // ══════════════════════════════════════════════════════════════
+  const TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjY2ODM4MDUyOCwiYWFpIjoxMSwidWlkIjoxMDMzMjkyNzQsImlhZCI6IjIwMjYtMDYtMDhUMTg6MTQ6MDIuMDAwWiIsInBlciI6Im1lOndyaXRlIiwiYWN0aWQiOjM1MDE1MDc4LCJyZ24iOiJldWMxIn0.MwVqTuydRsvQqwg02Gt4vc6yr5SkHwwgBQXP4735wNE";
+  const BOARD = "5098147203";
+  const IP = db.prepare("INSERT INTO projects (name, location, end_date, status, analysis, proposal, boq_json, monday_id, monday_board_id, monday_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-  // --- 2 פרויקטים פעילים תואמי Monday (Won - "זכינו") ---
-  const insertProject = db.prepare("INSERT INTO projects (name, location, end_date, status, analysis, proposal, boq_json, monday_id, monday_board_id, monday_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-  
-  const p1 = insertProject.run(
-    "בניית בית פרטי - משפחת כהן (נווה עמל)", 
-    "נווה עמל, הרצליה", 
-    "2026-10-15", 
+  // פרויקט 1 — וילה נווה עמל הרצליה (בביצוע תקין)
+  const p1 = IP.run(
+    "וילה פרטית — משפחת כהן, נווה עמל הרצליה",
+    "נווה עמל, הרצליה",
+    "2026-10-15",
     "תקין",
-    "בניית וילה פרטית יוקרתית כוללת בריכת שחייה ומפרט אדריכלי מורכב.",
-    null,
-    null,
-    "2995741804",
-    "5098147203",
-    "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjY2ODM4MDUyOCwiYWFpIjoxMSwidWlkIjoxMDMzMjkyNzQsImlhZCI6IjIwMjYtMDYtMDhUMTg6MTQ6MDIuMDAwWiIsInBlciI6Im1lOndyaXRlIiwiYWN0aWQiOjM1MDE1MDc4LCJyZ24iOiJldWMxIn0.MwVqTuydRsvQqwg02Gt4vc6yr5SkHwwgBQXP4735wNE"
-  );
-  
-  const p2 = insertProject.run(
-    "עבודות פיתוח ותשתיות - מתחם עסקים שורק קו 4", 
-    "אזור תעשייה שורק", 
-    "2026-08-30", 
-    "תקין",
-    "עבודות עפר, פיתוח, סלילה והנחת תשתיות מים ותיעול במתחם מסחרי שורק.",
-    null,
-    null,
-    "2995791814",
-    "5098147203",
-    "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjY2ODM4MDUyOCwiYWFpIjoxMSwidWlkIjoxMDMzMjkyNzQsImlhZCI6IjIwMjYtMDYtMDhUMTg6MTQ6MDIuMDAwWiIsInBlciI6Im1lOndyaXRlIiwiYWN0aWQiOjM1MDE1MDc4LCJyZ24iOiJldWMxIn0.MwVqTuydRsvQqwg02Gt4vc6yr5SkHwwgBQXP4735wNE"
+    "בניית וילה פרטית יוקרתית 350 מ\"ר. כולל בריכת שחייה, חניון תת-קרקעי, ממ\"ד, וסיום מלא. פרויקט בביצוע — שלד קומה א׳ ב-75%.",
+    "הצעת מחיר מאושרת: 1,950,000 ₪ (לא כולל מע\"מ).",
+    JSON.stringify([
+      {"section":"01","item":"עפר ויסודות","quantity":350,"unit":"מ\"ק","unitPrice":620,"total":217000},
+      {"section":"02","item":"שלד בטון מזוין","quantity":280,"unit":"מ\"ק","unitPrice":1450,"total":406000},
+      {"section":"03","item":"חשמל ותקשורת","quantity":1,"unit":"גלובלי","unitPrice":300000,"total":300000},
+      {"section":"04","item":"אינסטלציה ומיזוג","quantity":1,"unit":"גלובלי","unitPrice":250000,"total":250000},
+      {"section":"05","item":"ריצוף וגמרים","quantity":420,"unit":"מ\"ר","unitPrice":660,"total":277200},
+    ]),
+    "2995741804", BOARD, TOKEN
   );
 
-  const projId1 = p1.lastInsertRowid;
-  const projId2 = p2.lastInsertRowid;
+  // פרויקט 2 — בית קרקע אבן יהודה (בביצוע — עיכוב קל)
+  const p2 = IP.run(
+    "בית פרטי קרקע — משפחת בן דוד, אבן יהודה",
+    "אבן יהודה, השרון",
+    "2026-09-30",
+    "עיכוב",
+    "בנייה בקרקע בשטח 280 מ\"ר עם קומה + מרתף. פרויקט עם עיכוב של כ-3 שבועות בגלל עיכוב באספקת ברזל מהספק.",
+    "הצעת מחיר: 1,650,000 ₪ (לא כולל מע\"מ).",
+    JSON.stringify([
+      {"section":"01","item":"יסודות ועפר","quantity":260,"unit":"מ\"ק","unitPrice":600,"total":156000},
+      {"section":"02","item":"שלד ומרתף","quantity":240,"unit":"מ\"ק","unitPrice":1500,"total":360000},
+      {"section":"03","item":"חשמל","quantity":1,"unit":"גלובלי","unitPrice":220000,"total":220000},
+      {"section":"04","item":"אינסטלציה","quantity":1,"unit":"גלובלי","unitPrice":180000,"total":180000},
+      {"section":"05","item":"גמרים","quantity":380,"unit":"מ\"ר","unitPrice":560,"total":212800},
+    ]),
+    "2977901166", BOARD, TOKEN
+  );
 
-  // --- סעיפי תקציב (Budgets) ---
-  const insertBudget = db.prepare("INSERT INTO budgets (project_id, category, total_amount) VALUES (?, ?, ?)");
-  
-  // פרויקט 1 - בית פרטי משפחת כהן
-  const b1_1 = insertBudget.run(projId1, "עבודות שלד ופיתוח", 1200000).lastInsertRowid;
-  const b1_2 = insertBudget.run(projId1, "חשמל ותקשורת", 300000).lastInsertRowid;
-  const b1_3 = insertBudget.run(projId1, "אינסטלציה ומיזוג", 250000).lastInsertRowid;
-  const b1_4 = insertBudget.run(projId1, "גמרים וצבע", 200000).lastInsertRowid;
-  
-  // פרויקט 2 - פיתוח שורק
-  const b2_1 = insertBudget.run(projId2, "עבודות עפר וחפירה", 500000).lastInsertRowid;
-  const b2_2 = insertBudget.run(projId2, "סלילה ואספלט", 400000).lastInsertRowid;
-  const b2_3 = insertBudget.run(projId2, "צנרת ותיעול מים", 250000).lastInsertRowid;
+  // פרויקט 3 — וילה מזכרת בתיה (זכינו, מתחיל בקרוב)
+  const p3 = IP.run(
+    "וילה יוקרה — משפחת אדרי, מזכרת בתיה",
+    "מזכרת בתיה, השרון הדרומי",
+    "2027-02-28",
+    "תקין",
+    "וילה יוקרה ענקית 480 מ\"ר עם בריכה, מחסנים, גג ירוק ואדריכלות מיוחדת. חוזה נחתם — פתיחת אתר ביולי 2026.",
+    "הצעת מחיר חתומה: 3,100,000 ₪ (לא כולל מע\"מ).",
+    JSON.stringify([
+      {"section":"01","item":"יסודות ועפר","quantity":550,"unit":"מ\"ק","unitPrice":640,"total":352000},
+      {"section":"02","item":"שלד בטון","quantity":420,"unit":"מ\"ק","unitPrice":1520,"total":638400},
+      {"section":"03","item":"חשמל ותקשורת חכמה","quantity":1,"unit":"גלובלי","unitPrice":480000,"total":480000},
+      {"section":"04","item":"אינסטלציה ומיזוג","quantity":1,"unit":"גלובלי","unitPrice":380000,"total":380000},
+      {"section":"05","item":"ריצוף שיש ופרקט","quantity":560,"unit":"מ\"ר","unitPrice":890,"total":498400},
+      {"section":"06","item":"בריכת שחייה","quantity":1,"unit":"גלובלי","unitPrice":340000,"total":340000},
+    ]),
+    "2977941656", BOARD, TOKEN
+  );
 
-  // --- הוצאות (Expenses) ---
-  const insertExpense = db.prepare("INSERT INTO expenses (project_id, budget_id, contractor_id, amount, date, description) VALUES (?, ?, ?, ?, ?, ?)");
-  
-  // פרויקט 1 הוצאות (כהן)
-  insertExpense.run(projId1, b1_1, contId7, 850000, "2026-05-10", "חשבון חלקי 1 - יציקת רפסודה ועמודים");
-  insertExpense.run(projId1, b1_2, contId4, 120000, "2026-05-28", "הנחת צנרת מוגנת בבטון וחיווט זמני");
-  insertExpense.run(projId1, b1_3, contId3, 90000, "2026-06-02", "פריסת קווי מים ראשיים ודלייה");
+  // פרויקט 4 — בית כפרי רעננה (בביצוע תקין, 60%)
+  const p4 = IP.run(
+    "בית פרטי — משפחת לוי, רעננה",
+    "רעננה, השרון",
+    "2026-12-01",
+    "תקין",
+    "בית כפרי אסתטי 310 מ\"ר עם חצר גדולה ופינת מדורה. שלד הושלם. בשלב מערכות ועבודות פנים.",
+    "הצעת מחיר: 2,100,000 ₪ (לא כולל מע\"מ).",
+    JSON.stringify([
+      {"section":"01","item":"יסודות ועפר","quantity":300,"unit":"מ\"ק","unitPrice":610,"total":183000},
+      {"section":"02","item":"שלד בטון מזוין","quantity":260,"unit":"מ\"ק","unitPrice":1480,"total":384800},
+      {"section":"03","item":"חשמל","quantity":1,"unit":"גלובלי","unitPrice":340000,"total":340000},
+      {"section":"04","item":"אינסטלציה","quantity":1,"unit":"גלובלי","unitPrice":260000,"total":260000},
+      {"section":"05","item":"גבס, טיח וצבע","quantity":480,"unit":"מ\"ר","unitPrice":280,"total":134400},
+      {"section":"06","item":"ריצוף וחיפוי","quantity":410,"unit":"מ\"ר","unitPrice":720,"total":295200},
+    ]),
+    "3010001001", BOARD, TOKEN
+  );
 
-  // פרויקט 2 הוצאות (שורק)
-  insertExpense.run(projId2, b2_1, contId2, 380000, "2026-05-15", "עבודות חפירה, יישור ומילוי מצעים");
-  insertExpense.run(projId2, b2_3, contId3, 110000, "2026-06-01", "הנחת צינורות ביוב קוטר 80 ס״מ");
+  // פרויקט 5 — בית פרטי כפר סבא (בביצוע — עיכוב בגלל רישוי)
+  const p5 = IP.run(
+    "בית פרטי — משפחת שמיר, כפר סבא",
+    "כפר סבא, השרון",
+    "2026-11-15",
+    "עיכוב",
+    "בית דו-קומתי 260 מ\"ר. פרויקט עם עיכוב של כ-6 שבועות בשל עיכובים בהוצאת היתר בנייה. עבודות ייחלו ברגע שהיתר יתקבל.",
+    "הצעת מחיר: 1,780,000 ₪ (לא כולל מע\"מ).",
+    JSON.stringify([
+      {"section":"01","item":"יסודות ועפר","quantity":240,"unit":"מ\"ק","unitPrice":590,"total":141600},
+      {"section":"02","item":"שלד בטון","quantity":220,"unit":"מ\"ק","unitPrice":1460,"total":321200},
+      {"section":"03","item":"חשמל","quantity":1,"unit":"גלובלי","unitPrice":280000,"total":280000},
+      {"section":"04","item":"אינסטלציה","quantity":1,"unit":"גלובלי","unitPrice":210000,"total":210000},
+      {"section":"05","item":"גמרים","quantity":350,"unit":"מ\"ר","unitPrice":590,"total":206500},
+    ]),
+    "3010001002", BOARD, TOKEN
+  );
 
-  // --- הכנסות (Incomes) ---
-  const insertIncome = db.prepare("INSERT INTO incomes (project_id, amount, date, description) VALUES (?, ?, ?, ?)");
-  
-  // פרויקט 1 הכנסות (כהן)
-  insertIncome.run(projId1, 950000, "2026-04-10", "מקדמה תחילת עבודה משפחת כהן");
-  
-  // פרויקט 2 הכנסות (שורק)
-  insertIncome.run(projId2, 500000, "2026-05-01", "תשלום ראשון על פי אבן דרך חפירות");
+  // פרויקט 6 — בית פרטי הוד השרון (עוד לא התחיל — חתמנו)
+  const p6 = IP.run(
+    "וילה פרטית — משפחת גולן, הוד השרון",
+    "הוד השרון",
+    "2027-04-30",
+    "תקין",
+    "וילה 400 מ\"ר עם עיצוב מודרני ואדריכלות מינימליסטית. חוזה חתום — פתיחת אתר ספטמבר 2026 לאחר גמר תכניות.",
+    "הצעת מחיר חתומה: 2,650,000 ₪ (לא כולל מע\"מ).",
+    JSON.stringify([
+      {"section":"01","item":"יסודות ועפר","quantity":420,"unit":"מ\"ק","unitPrice":630,"total":264600},
+      {"section":"02","item":"שלד בטון","quantity":360,"unit":"מ\"ק","unitPrice":1500,"total":540000},
+      {"section":"03","item":"חשמל ותקשורת חכמה","quantity":1,"unit":"גלובלי","unitPrice":420000,"total":420000},
+      {"section":"04","item":"אינסטלציה ומיזוג","quantity":1,"unit":"גלובלי","unitPrice":310000,"total":310000},
+      {"section":"05","item":"ריצוף וחיפוי פרמיום","quantity":520,"unit":"מ\"ר","unitPrice":980,"total":509600},
+      {"section":"06","item":"פיתוח חוץ וגינה","quantity":1,"unit":"גלובלי","unitPrice":180000,"total":180000},
+    ]),
+    "3010001003", BOARD, TOKEN
+  );
 
-  // --- יומני עבודה יומיים (Daily Logs) ---
-  const insertLog = db.prepare("INSERT INTO daily_logs (project_id, date, manager_name, weather, workers_count, notes, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)");
-  insertLog.run(projId1, "2026-06-12", "אבי כהן", "בהיר וחם", 14, "בוצעו תיקוני טפסנות ליציקת תקרת שלד קומה א׳. מפקח הבנייה אישר את הברזל.", "");
-  insertLog.run(projId2, "2026-06-13", "יוסי לוי", "חם", 8, "הידוק מצעים ופיזור כורכר באתר שורק קו 4. עבודה מול מודד מוסמך.", "");
-
-  // --- משימות גאנט (Tasks) ---
-  const insertTask = db.prepare("INSERT INTO tasks (project_id, name, start_date, end_date, progress, monday_id) VALUES (?, ?, ?, ?, ?, ?)");
-  
-  // פרויקט 1 (בית פרטי כהן)
-  insertTask.run(projId1, "עבודות עפר ויסודות", "2026-05-01", "2026-05-25", 100, "t1_1");
-  insertTask.run(projId1, "יציקת שלד קומת קרקע", "2026-05-26", "2026-06-20", 75, "t1_2");
-  insertTask.run(projId1, "מערכות ואיטום שלד", "2026-06-21", "2026-08-15", 0, "t1_3");
-  insertTask.run(projId1, "עבודות גמר, ריצוף ופיתוח", "2026-08-16", "2026-10-15", 0, "t1_4");
-
-  // פרויקט 2 (מתחם שורק)
-  insertTask.run(projId2, "חפירה, מילוי ויישור שטח", "2026-05-05", "2026-05-30", 100, "t2_1");
-  insertTask.run(projId2, "הנחת קווי ביוב ותיעול", "2026-06-01", "2026-07-10", 35, "t2_2");
-  insertTask.run(projId2, "סלילה, פיזור מצעים ואספלט", "2026-07-11", "2026-08-30", 0, "t2_3");
-
-
-  // --- 6 מכרזים מנותחים תואמי Monday ---
-  const insertTender = db.prepare("INSERT INTO tenders (name, filename, upload_date, status, analysis, proposal, boq_json, monday_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  
-  // מכרז 1 - מגדלי הים התיכון חולון
-  const analysis1 = `### דוח ניתוח מכרז: עבודות שלד ותשתיות - מגדלי הים התיכון חולון בע"מ
-  
-**1. תמצית המכרז**
-הקמת שלד בניין רב קומות כולל חפירה ודיפון, עבודות ביסוס, שלד בטון מזוין ומערכות שלד מורכבות.
-  
-**2. תנאי סף עיקריים**
-* סיווג קבלני נדרש: ג'5 (בנייה).
-* ערבות מכרז: 250,000 ₪ בתוקף למשך 90 ימים.
-  
-**3. נקודות מפתח לביצוע**
-* תקופת ביצוע: 18 חודשים.
-* סיכון: עבודה סמוך לקווי רכבת קלה - דורש אישורי בטיחות מיוחדים.`;
-
-  const boq1 = [
-    {"section": "01", "item": "עבודות עפר וחפירות עמוקות", "quantity": 3000, "unit": "מ\"ק", "unitPrice": 90},
-    {"section": "02", "item": "יסודות ועמודי בטון מזוין", "quantity": 5000, "unit": "מ\"ק", "unitPrice": 480}
+  const projects = [
+    {row: p1, id: null, name: "וילה פרטית — משפחת כהן, נווה עמל הרצליה",       client:"משפחת כהן",    endDate:"2026-10-15", received:"2026-05-05", submit:"2026-06-04", price:1950000, status:"Done",    execStatus:"Working on it", priority:"Working on it", progress:75,  budget:1950000, actual:1060000, notes:"שלד קומה א׳ 75%. מתקדם לפי תכנית.", boqDone:true},
+    {row: p2, id: null, name: "בית פרטי קרקע — משפחת בן דוד, אבן יהודה",       client:"משפחת בן דוד", endDate:"2026-09-30", received:"2026-04-25", submit:"2026-05-20", price:1650000, status:"Done",    execStatus:"Stuck",          priority:"High",           progress:45,  budget:1650000, actual:550000,  notes:"עיכוב 3 שבועות — ספק ברזל. חידוש עבודה בשבוע הבא.", boqDone:true},
+    {row: p3, id: null, name: "וילה יוקרה — משפחת אדרי, מזכרת בתיה",           client:"משפחת אדרי",   endDate:"2027-02-28", received:"2026-04-10", submit:"2026-05-15", price:3100000, status:"Done",    execStatus:"Not Started",    priority:"Working on it", progress:0,   budget:3100000, actual:0,       notes:"חוזה חתום 14.4. פתיחת אתר 1.7.2026.", boqDone:true},
+    {row: p4, id: null, name: "בית פרטי — משפחת לוי, רעננה",                   client:"משפחת לוי",    endDate:"2026-12-01", received:"2026-03-15", submit:"2026-04-10", price:2100000, status:"Done",    execStatus:"Working on it", priority:"Working on it", progress:60,  budget:2100000, actual:1100000, notes:"שלד הושלם. עובדים על מערכות חשמל ומיזוג.", boqDone:true},
+    {row: p5, id: null, name: "בית פרטי — משפחת שמיר, כפר סבא",                client:"משפחת שמיר",   endDate:"2026-11-15", received:"2026-05-01", submit:"2026-06-01", price:1780000, status:"Done",    execStatus:"Stuck",          priority:"High",           progress:5,   budget:1780000, actual:22000,  notes:"עיכוב היתר בנייה ~6 שב׳. ממתינים לעירייה.", boqDone:true},
+    {row: p6, id: null, name: "וילה פרטית — משפחת גולן, הוד השרון",            client:"משפחת גולן",   endDate:"2027-04-30", received:"2026-06-01", submit:"2026-07-01", price:2650000, status:"Done",    execStatus:"Not Started",    priority:"Working on it", progress:0,   budget:2650000, actual:0,       notes:"חוזה חתום. פתיחת אתר ספטמבר 2026.", boqDone:true},
   ];
 
-  const proposal1 = `### הצעת מחיר עבור: מכרז מגדלי הים התיכון חולון
-סך כל הצעתנו לביצוע הפרויקט על פי כתב הכמויות עומדת על: **1,450,000 ₪** (לא כולל מע"מ).`;
+  const pIds = [p1,p2,p3,p4,p5,p6].map(r=>r.lastInsertRowid);
+  projects.forEach((proj, i) => { proj.dbId = pIds[i]; });
 
-  insertTender.run(
-    "עבודות שלד ותשתיות - מגדלי הים התיכון חולון בע\"מ",
-    "1718228000000-tender_school_dekel.pdf",
-    "2026-06-12T12:00:00.000Z",
-    "נותח",
-    analysis1,
-    proposal1,
-    JSON.stringify(boq1),
-    "2995730841"
-  );
+  // ══════════════════════════════════════════════════════════════
+  // תקציבים
+  // ══════════════════════════════════════════════════════════════
+  const IB = db.prepare("INSERT INTO budgets (project_id, category, total_amount) VALUES (?, ?, ?)");
 
-  // מכרז 2 - בית ספר אלונים רמת גן
-  const analysis2 = `### דוח ניתוח מכרז: בית ספר אלונים רמת גן
-הרחבה ושיפוץ בית ספר יסודי אלונים הכולל תוספת 6 כיתות, ממ״ד וספרייה מתקדמת.
-סיווג נדרש: ג׳3 לפחות. תקופת ביצוע: 10 חודשים.`;
+  const b = {
+    p1: {
+      s: IB.run(pIds[0], "שלד ויסודות",      1100000).lastInsertRowid,
+      e: IB.run(pIds[0], "חשמל",              300000).lastInsertRowid,
+      i: IB.run(pIds[0], "אינסטלציה",         250000).lastInsertRowid,
+      g: IB.run(pIds[0], "גמרים",             300000).lastInsertRowid,
+    },
+    p2: {
+      s: IB.run(pIds[1], "שלד ומרתף",         900000).lastInsertRowid,
+      e: IB.run(pIds[1], "חשמל",              220000).lastInsertRowid,
+      i: IB.run(pIds[1], "אינסטלציה",         180000).lastInsertRowid,
+      g: IB.run(pIds[1], "גמרים",             350000).lastInsertRowid,
+    },
+    p3: {
+      s: IB.run(pIds[2], "שלד",               990000).lastInsertRowid,
+      e: IB.run(pIds[2], "חשמל חכם",          480000).lastInsertRowid,
+      i: IB.run(pIds[2], "אינסטלציה",         380000).lastInsertRowid,
+      g: IB.run(pIds[2], "גמרים ובריכה",      838000).lastInsertRowid,
+    },
+    p4: {
+      s: IB.run(pIds[3], "שלד",               568000).lastInsertRowid,
+      e: IB.run(pIds[3], "חשמל",              340000).lastInsertRowid,
+      i: IB.run(pIds[3], "אינסטלציה",         260000).lastInsertRowid,
+      g: IB.run(pIds[3], "גמרים וריצוף",      430000).lastInsertRowid,
+    },
+    p5: {
+      s: IB.run(pIds[4], "שלד",               463000).lastInsertRowid,
+      e: IB.run(pIds[4], "חשמל",              280000).lastInsertRowid,
+      i: IB.run(pIds[4], "אינסטלציה",         210000).lastInsertRowid,
+      g: IB.run(pIds[4], "גמרים",             207000).lastInsertRowid,
+    },
+    p6: {
+      s: IB.run(pIds[5], "שלד",               804000).lastInsertRowid,
+      e: IB.run(pIds[5], "חשמל חכם",          420000).lastInsertRowid,
+      i: IB.run(pIds[5], "אינסטלציה",         310000).lastInsertRowid,
+      g: IB.run(pIds[5], "גמרים ופיתוח",      690000).lastInsertRowid,
+    }
+  };
 
-  const boq2 = [
-    {"section": "01", "item": "פירוקים והכנת אתר", "quantity": 1, "unit": "גלובלי", "unitPrice": 85000},
-    {"section": "02", "item": "תוספת שלד בטון", "quantity": 400, "unit": "מ\"ק", "unitPrice": 520}
-  ];
+  // ══════════════════════════════════════════════════════════════
+  // הוצאות
+  // ══════════════════════════════════════════════════════════════
+  const IE = db.prepare("INSERT INTO expenses (project_id, budget_id, contractor_id, amount, date, description) VALUES (?, ?, ?, ?, ?, ?)");
 
-  const proposal2 = `### הצעת מחיר עבור: מכרז בית ספר אלונים רמת גן
-סך הצעתנו הכוללת עומדת על: **890,000 ₪** (לא כולל מע"מ).`;
+  // פרויקט 1 (כהן — נווה עמל)
+  IE.run(pIds[0], b.p1.s, cId7, 850000, "2026-05-10", "חשבון חלקי 1 — יציקת רפסודה ועמודים קומת קרקע");
+  IE.run(pIds[0], b.p1.s, cId7,  95000, "2026-06-05", "חשבון חלקי 2 — שלד קומה א׳, ברזל וטפסנות");
+  IE.run(pIds[0], b.p1.e, cId4,  78000, "2026-05-28", "הנחת צנרת מוגנת וחיווט תשתיתי");
+  IE.run(pIds[0], b.p1.i, cId3,  62000, "2026-06-02", "פריסת קווי מים וצנרת כיבוי אש");
+  IE.run(pIds[0], b.p1.g, cId5,  22000, "2026-06-08", "מחיצות גבס — שירותי קומת קרקע");
 
-  insertTender.run(
-    "הרחבה ושיפוץ בית ספר יסודי \"אלונים\" רמת גן",
-    "1718229000000-tender_sports_hall_netanya.pdf",
-    "2026-06-13T10:00:00.000Z",
-    "חדש",
-    analysis2,
-    proposal2,
-    JSON.stringify(boq2),
-    "2995723323"
-  );
+  // פרויקט 2 (בן דוד — אבן יהודה)
+  IE.run(pIds[1], b.p2.s, cId8, 320000, "2026-05-15", "יציקת מרתף ורפסודה — חשבון א׳");
+  IE.run(pIds[1], b.p2.s, cId8,  85000, "2026-06-01", "שלד קומת קרקע — חלקי");
+  IE.run(pIds[1], b.p2.i, cId3,  55000, "2026-06-05", "אינסטלציה ראשונית — צנרת מרתף");
+  IE.run(pIds[1], b.p2.e, cId4,  42000, "2026-06-10", "חיווט תשתיתי ולוח ראשי");
 
-  // מכרז 3 - מתחם שורק שלב ב'
-  insertTender.run(
-    "בניית מתחם מסחרי שורק - שלב ב'",
-    "1718229000000-tender_sports_hall_netanya.pdf",
-    "2026-06-04T12:00:00.000Z",
-    "נותח",
-    "ניתוח מתחם מסחרי שורק שלב ב׳ הכולל בניית שטחי מסחר פתוחים, חיפויי פלדה ומערכות אוורור.",
-    "הצעת מחיר בשלבים סופיים: סה״כ 3,200,000 ₪",
-    JSON.stringify([]),
-    "2995723324"
-  );
+  // פרויקט 3 (אדרי — מזכרת בתיה) — רק הוצאות הכנה
+  IE.run(pIds[2], b.p3.s, cId2,  28000, "2026-06-10", "פינוי אתר, גדר ושלטי בטיחות");
+  IE.run(pIds[2], b.p3.s, cId7,  12000, "2026-06-12", "תכנון ברזל ועריכת כתב ברזל מפורט");
 
-  // מכרז 4 - שכונת נווה זמר
-  insertTender.run(
-    "עבודות עפר וקירות תומכים - שכונת נווה זמר",
-    "1718229000000-tender_sports_hall_netanya.pdf",
-    "2026-06-09T09:00:00.000Z",
-    "נותח",
-    "עבודות עפר וקירות תומכים בשכונת נווה זמר. יישור קו גבולות מגרשים ויציקות קירות דיפון.",
-    "הצעת מחיר מוערכת: 450,000 ₪",
-    JSON.stringify([]),
-    "2995741803"
-  );
+  // פרויקט 4 (לוי — רעננה)
+  IE.run(pIds[3], b.p4.s, cId7, 540000, "2026-04-20", "שלד מלא — יסודות, קומת קרקע וקומה א׳");
+  IE.run(pIds[3], b.p4.e, cId4, 280000, "2026-05-25", "חשמל — לוחות, חיווט, נקודות");
+  IE.run(pIds[3], b.p4.i, cId3, 195000, "2026-06-01", "אינסטלציה — מים, ביוב, גז, כיבוי אש");
+  IE.run(pIds[3], b.p4.g, cId5,  85000, "2026-06-10", "גבס, טיח ועבודות פנים חלקיות");
 
-  // מכרז 5 - בסר 4 קומה 22
-  insertTender.run(
-    "עבודות גמר ומיזוג אוויר - מגדלי בסר 4 קומה 22",
-    "1718229000000-tender_sports_hall_netanya.pdf",
-    "2026-05-25T11:00:00.000Z",
-    "הוגש",
-    "עבודות גמר, מחיצות גבס, תקרות אקוסטיות, פריסת חשמל ומיזוג אוויר במגדל בסר קומה 22.",
-    "הוגש בהצלחה: 720,000 ₪",
-    JSON.stringify([]),
-    "2995723360"
-  );
+  // פרויקט 5 (שמיר — כ\"ס) — רק חריגים ותשלום ראשוני
+  IE.run(pIds[4], b.p5.s, cId2,  22000, "2026-05-28", "פינוי אתר ראשוני — הכנה להיתר");
 
-  // מכרז 6 - קמפוס משרדים רעננה
-  insertTender.run(
-    "מכרז שלד ומעטפת - קמפוס משרדים רעננה",
-    "1718228000000-tender_school_dekel.pdf",
-    "2026-04-25T16:00:00.000Z",
-    "לא זכינו",
-    "מכרז רחב שלד ומעטפת קמפוס רעננה. ההצעה הוגשה על סך 5,400,000 ₪.",
-    "הצעה סופית: 5,400,000 ₪. לא זכינו במכרז.",
-    JSON.stringify([]),
-    "2995731113"
-  );
+  // פרויקט 6 (גולן — הוד השרון) — אין עדיין
+  // (לא הוצאות, עוד לא התחיל)
 
-  console.log('Seeding complete.');
+  // ══════════════════════════════════════════════════════════════
+  // הכנסות
+  // ══════════════════════════════════════════════════════════════
+  const II = db.prepare("INSERT INTO incomes (project_id, amount, date, description) VALUES (?, ?, ?, ?)");
 
-  // גיבוי מיידי לענן
+  // פרויקט 1 (כהן)
+  II.run(pIds[0],  975000, "2026-04-10", "מקדמה — 50% מהצעת המחיר");
+  II.run(pIds[0],  350000, "2026-05-30", "אבן דרך: השלמת יסודות ושלד קרקע");
+  II.run(pIds[0],  195000, "2026-06-12", "אבן דרך שלישית: שלד קומה א׳ 75%");
+
+  // פרויקט 2 (בן דוד)
+  II.run(pIds[1],  825000, "2026-04-28", "מקדמה — 50% מהצעת המחיר");
+  II.run(pIds[1],  165000, "2026-06-01", "אבן דרך: השלמת מרתף ושלד קרקע");
+
+  // פרויקט 3 (אדרי)
+  II.run(pIds[2], 1550000, "2026-04-15", "מקדמה — 50% מהצעת המחיר");
+
+  // פרויקט 4 (לוי)
+  II.run(pIds[3], 1050000, "2026-03-20", "מקדמה — 50%");
+  II.run(pIds[3],  420000, "2026-05-10", "אבן דרך: שלד הושלם");
+  II.run(pIds[3],  210000, "2026-06-12", "אבן דרך: חשמל ואינסטלציה הושלמו");
+
+  // פרויקט 5 (שמיר) — רק מקדמה
+  II.run(pIds[4],  890000, "2026-05-05", "מקדמה — 50%. בהמתנה להיתר.");
+
+  // פרויקט 6 (גולן) — מקדמה
+  II.run(pIds[5], 1325000, "2026-06-05", "מקדמה — 50% ממחיר החוזה");
+
+  // ══════════════════════════════════════════════════════════════
+  // יומני עבודה
+  // ══════════════════════════════════════════════════════════════
+  const IL = db.prepare("INSERT INTO daily_logs (project_id, date, manager_name, weather, workers_count, notes, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)");
+
+  // פרויקט 1
+  IL.run(pIds[0], "2026-05-15", "אבי כהן",    "בהיר",        18, "חפירת יסודות הושלמה. מדידה ואישור מפקח.", "");
+  IL.run(pIds[0], "2026-05-22", "אבי כהן",    "מעונן קל",    16, "יציקת רפסודה — 120 מ\"ק. 4 מיכליות. תקין.", "");
+  IL.run(pIds[0], "2026-06-03", "אבי כהן",    "חם",          15, "הקמת עמודים קומת קרקע. ברזלן עובד.", "");
+  IL.run(pIds[0], "2026-06-10", "אבי כהן",    "בהיר וחם",    14, "טפסנות תקרת קומה א׳. מפקח ביקר ואישר ברזל.", "");
+  IL.run(pIds[0], "2026-06-13", "אבי כהן",    "חם",          13, "יציקת תקרת קומה א׳ — 85 מ\"ק. תקין.", "");
+
+  // פרויקט 2
+  IL.run(pIds[1], "2026-05-18", "מנחם גולן",  "חם",          12, "יציקת מרתף ורפסודה — 95 מ\"ק. עבודה תקינה.", "");
+  IL.run(pIds[1], "2026-06-01", "מנחם גולן",  "חם",          10, "שלד קומת קרקע — 40% בוצע. בגלל עיכוב ברזל — הוזמן חלופי.", "");
+  IL.run(pIds[1], "2026-06-10", "מנחם גולן",  "בהיר",         8, "הגיע ברזל חלופי. חידוש עבודה. צפי: השלמת שלד קרקע עד 20.6.", "");
+
+  // פרויקט 3
+  IL.run(pIds[2], "2026-06-10", "רוני אדרי",  "בהיר",         5, "פינוי ראשוני של אתר, הכנת גדר ושלטים. תחילת עבודה סמלית.", "");
+
+  // פרויקט 4
+  IL.run(pIds[3], "2026-05-01", "שלמה לוי",   "בהיר",        20, "שלד קומת קרקע הושלם. מפקח ביקר ואישר.", "");
+  IL.run(pIds[3], "2026-05-20", "שלמה לוי",   "חם",          18, "שלד קומה א׳ ותקרה. יציקה אחרונה בוצעה.", "");
+  IL.run(pIds[3], "2026-06-05", "שלמה לוי",   "חם",          14, "חשמלאים ואינסטלטורים בפעולה — תשתיות פנים.", "");
+  IL.run(pIds[3], "2026-06-12", "שלמה לוי",   "מעונן",       12, "גבס קומת קרקע מתקדם. 60% הושלם.", "");
+
+  // פרויקט 5 — רק יום אחד (בהמתנה)
+  IL.run(pIds[4], "2026-05-28", "יוני שמיר",  "בהיר",         3, "פינוי אולי וגידור. ממתינים להיתר עירייה.", "");
+
+  // פרויקט 6 — אין עדיין
+
+  // ══════════════════════════════════════════════════════════════
+  // משימות גאנט
+  // ══════════════════════════════════════════════════════════════
+  const IT = db.prepare("INSERT INTO tasks (project_id, name, start_date, end_date, progress, monday_id) VALUES (?, ?, ?, ?, ?, ?)");
+
+  // פרויקט 1
+  IT.run(pIds[0], "עפר ויסודות",              "2026-05-01", "2026-05-25", 100, "t1_1");
+  IT.run(pIds[0], "שלד קומת קרקע",            "2026-05-26", "2026-06-15",  90, "t1_2");
+  IT.run(pIds[0], "שלד קומה א׳",              "2026-06-10", "2026-07-10",  75, "t1_3");
+  IT.run(pIds[0], "מערכות מים, חשמל, מיזוג",  "2026-07-11", "2026-08-20",   0, "t1_4");
+  IT.run(pIds[0], "ריצוף, גמרים ופיתוח חוץ",  "2026-08-21", "2026-10-15",   0, "t1_5");
+
+  // פרויקט 2
+  IT.run(pIds[1], "מרתף ויסודות",             "2026-05-01", "2026-05-25", 100, "t2_1");
+  IT.run(pIds[1], "שלד קומת קרקע",            "2026-05-26", "2026-06-25",  45, "t2_2"); // עיכוב
+  IT.run(pIds[1], "שלד קומה א׳",              "2026-06-26", "2026-07-25",   0, "t2_3");
+  IT.run(pIds[1], "מערכות וגמרים",            "2026-07-26", "2026-09-30",   0, "t2_4");
+
+  // פרויקט 3
+  IT.run(pIds[2], "הכנת אתר",                 "2026-06-10", "2026-06-30",  30, "t3_1");
+  IT.run(pIds[2], "עפר ויסודות",              "2026-07-01", "2026-08-15",   0, "t3_2");
+  IT.run(pIds[2], "שלד",                       "2026-08-16", "2026-11-01",   0, "t3_3");
+  IT.run(pIds[2], "מערכות",                    "2026-11-02", "2026-12-20",   0, "t3_4");
+  IT.run(pIds[2], "גמרים ובריכה",             "2026-12-21", "2027-02-28",   0, "t3_5");
+
+  // פרויקט 4
+  IT.run(pIds[3], "עפר ויסודות",              "2026-03-15", "2026-04-10", 100, "t4_1");
+  IT.run(pIds[3], "שלד מלא",                  "2026-04-11", "2026-05-15", 100, "t4_2");
+  IT.run(pIds[3], "חשמל ואינסטלציה",          "2026-05-16", "2026-06-30",  65, "t4_3");
+  IT.run(pIds[3], "גבס, טיח, ריצוף",         "2026-07-01", "2026-09-30",   0, "t4_4");
+  IT.run(pIds[3], "גמרים, פיתוח, מסירה",     "2026-10-01", "2026-12-01",   0, "t4_5");
+
+  // פרויקט 5
+  IT.run(pIds[4], "הכנת אתר + המתנה להיתר",  "2026-05-20", "2026-07-15",   5, "t5_1");
+  IT.run(pIds[4], "עפר ויסודות",              "2026-07-16", "2026-08-20",   0, "t5_2");
+  IT.run(pIds[4], "שלד",                       "2026-08-21", "2026-10-01",   0, "t5_3");
+  IT.run(pIds[4], "מערכות וגמרים",            "2026-10-02", "2026-11-15",   0, "t5_4");
+
+  // פרויקט 6
+  IT.run(pIds[5], "גמר תכניות ואישורים",      "2026-06-01", "2026-08-31",  20, "t6_1");
+  IT.run(pIds[5], "פתיחת אתר ועפר",           "2026-09-01", "2026-10-31",   0, "t6_2");
+  IT.run(pIds[5], "שלד",                       "2026-11-01", "2027-01-31",   0, "t6_3");
+  IT.run(pIds[5], "מערכות",                    "2027-02-01", "2027-03-15",   0, "t6_4");
+  IT.run(pIds[5], "גמרים ופיתוח",             "2027-03-16", "2027-04-30",   0, "t6_5");
+
+  // ══════════════════════════════════════════════════════════════
+  // הזמנות חומרים
+  // ══════════════════════════════════════════════════════════════
+  const IO = db.prepare("INSERT INTO orders (project_id, supplier_name, item_description, amount, order_date, status) VALUES (?, ?, ?, ?, ?, ?)");
+
+  IO.run(pIds[0], "רשת ישרוטל חומרי בניין",  "ברזל לשלד — 18 טון, מעוגל 12 ו-16",    65000, "2026-05-05", "סופק");
+  IO.run(pIds[0], "בטון מוכן רמת גן",          "בטון B30 — יציקת רפסודה 120 מ\"ק",       38400, "2026-05-22", "סופק");
+  IO.run(pIds[0], "בטון מוכן רמת גן",          "בטון B30 — תקרת קומה א׳ 85 מ\"ק",        27200, "2026-06-13", "בדרך");
+  IO.run(pIds[0], "חשמל ישיר",                 "כבל + לוחות חשמל",                        18900, "2026-06-01", "סופק");
+  IO.run(pIds[0], "גורמן ריצוף",               "גרניט 60x60 — 450 מ\"ר (מראש)",            85000, "2026-06-10", "הוזמן");
+
+  IO.run(pIds[1], "סלע ברזל ובניין",           "ברזל 20 טון — הזמנה חלופית דחופה",       72000, "2026-06-08", "בדרך");
+  IO.run(pIds[1], "בטון הרצליה",               "בטון B30 — 95 מ\"ק",                        30400, "2026-05-17", "סופק");
+
+  IO.run(pIds[2], "רשת ישרוטל",               "מלט, ברזל וחיפוי ראשוני לאתר",            32000, "2026-06-08", "הוזמן");
+
+  IO.run(pIds[3], "רשת ישרוטל חומרי בניין",  "ברזל לשלד — 22 טון",                       79000, "2026-03-18", "סופק");
+  IO.run(pIds[3], "בטון מוכן רמת גן",          "בטון B30 — שלד מלא 280 מ\"ק",              89600, "2026-04-15", "סופק");
+  IO.run(pIds[3], "חשמל ישיר",                 "ציוד חשמל מלא — לוחות ונקודות",            95000, "2026-05-20", "סופק");
+
+  // ══════════════════════════════════════════════════════════════
+  // קריאות אחריות
+  // ══════════════════════════════════════════════════════════════
+  const IW = db.prepare("INSERT INTO warranty_tickets (project_id, client_name, phone, apartment, issue_description, status, open_date, close_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+  IW.run(pIds[0], "דוד כהן",           "052-9876543", "וילה נווה עמל",
+    "סדק דק בטיח חדר שינה — ייתכן התכנסות ראשונית. דורש בדיקה.", "בטיפול", "2026-06-01", null);
+  IW.run(pIds[0], "דוד כהן",           "052-9876543", "וילה נווה עמל",
+    "ברז חירום שירותי אורחים — לא נסגר. הוחלף.", "טופל", "2026-05-20", "2026-05-24");
+  IW.run(pIds[1], "שרה בן דוד",        "054-7654321", "בית אבן יהודה",
+    "רטיבות בפינת מרתף — ייתכן בעיית איטום. בבדיקה.", "בטיפול", "2026-06-08", null);
+  IW.run(pIds[3], "יוסי לוי",          "050-3334444", "בית רעננה",
+    "אריח ריצוף שבור בכניסה — נגרם מציוד. תחלוף.", "פתוח", "2026-06-11", null);
+
+  // ══════════════════════════════════════════════════════════════
+  // מכרזים
+  // ══════════════════════════════════════════════════════════════
+  const ITD = db.prepare("INSERT INTO tenders (name, filename, upload_date, status, analysis, proposal, boq_json, monday_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+  ITD.run("עבודות שלד ותשתיות — מגדלי הים התיכון חולון","1718228000000-tender_a.pdf","2026-06-12T12:00:00.000Z","נותח",
+    `### ניתוח: מגדלי הים התיכון חולון\n\n**תמצית:** שלד רב-קומות, חפירה, ביסוס, שלד בטון.\n**סיווג:** ג׳5. **ערבות:** 250,000 ₪. **ביצוע:** 18 חודשים.\n**המלצה:** ✅ להגיש.`,
+    `הצעה: **1,450,000 ₪** (לא כולל מע"מ).`,
+    JSON.stringify([{"section":"01","item":"עפר וחפירות","quantity":3000,"unit":"מ\"ק","unitPrice":90,"total":270000},{"section":"02","item":"יסודות ושלד","quantity":500,"unit":"מ\"ק","unitPrice":1480,"total":740000}]),
+    "2995730841");
+
+  ITD.run("הרחבה ושיפוץ בית ספר יסודי אלונים רמת גן","1718229000000-tender_b.pdf","2026-06-13T10:00:00.000Z","חדש",
+    `### ניתוח: בית ספר אלונים רמת גן\n\n**תמצית:** תוספת 6 כיתות, ממ״ד וספרייה.\n**סיווג:** ג׳3. **ביצוע:** 10 חודשים.\n**המלצה:** ✅ כדאי לבחון.`,
+    `הצעה: **890,000 ₪** (לא כולל מע"מ).`,
+    JSON.stringify([{"section":"01","item":"פירוקים","quantity":1,"unit":"גלובלי","unitPrice":85000},{"section":"02","item":"שלד תוספת","quantity":400,"unit":"מ\"ק","unitPrice":520}]),
+    "2995723323");
+
+  ITD.run("עבודות גמר — מגדלי בסר 4 קומה 22","1718230000000-tender_c.pdf","2026-05-25T11:00:00.000Z","הוגש",
+    `### ניתוח: בסר 4 קומה 22\n\n**תמצית:** גמרים, גבס, תקרות, חשמל ומיזוג.\n**הוגש:** 25.05.2026.`,
+    `הצעה שהוגשה: **720,000 ₪** (לא כולל מע"מ).`,
+    JSON.stringify([{"section":"01","item":"גבס","quantity":840,"unit":"מ\"ר","unitPrice":185},{"section":"02","item":"תקרות","quantity":620,"unit":"מ\"ר","unitPrice":220},{"section":"03","item":"מיזוג","quantity":1,"unit":"גלובלי","unitPrice":280000}]),
+    "2995723360");
+
+  ITD.run("מכרז שלד ומעטפת — קמפוס משרדים רעננה","1718231000000-tender_d.pdf","2026-04-25T16:00:00.000Z","לא זכינו",
+    `### ניתוח: קמפוס משרדים רעננה\n\n**תמצית:** 4 בניינים שלד ומעטפת.\n**תוצאה:** לא זכינו. המתחרה הגיש 4,980,000 — פחות ב-420,000 ₪.`,
+    `הצעה: **5,400,000 ₪** (לא כולל מע"מ). לא זכינו.`,
+    JSON.stringify([{"section":"01","item":"שלד 4 בניינים","quantity":2200,"unit":"מ\"ק","unitPrice":1520},{"section":"02","item":"מעטפת","quantity":4200,"unit":"מ\"ר","unitPrice":380}]),
+    "2995731113");
+
+  console.log('✅ Seeding complete — 6 Sharon projects, all tables populated.');
+
   if (db.backupToCloud) {
     try {
-      console.log('☁️ Backing up seeded database to Cloud Storage...');
+      console.log('☁️ Backing up to Cloud...');
       await db.backupToCloud();
-      console.log('☁️ Cloud database backup completed.');
-    } catch (e) {
-      console.error('☁️ Cloud Storage backup failed:', e.message);
-    }
+      console.log('☁️ Cloud backup complete.');
+    } catch (e) { console.error('☁️ Backup failed:', e.message); }
   }
 }
 
-// קריאה ראשונית בעת טעינת המודול למקרה שאין פרויקטים כלל
-reseedDatabase(false).catch(err => {
-  console.error("Error running auto-seed on module import:", err);
-});
+reseedDatabase(false).catch(err => console.error("Auto-seed error:", err));
