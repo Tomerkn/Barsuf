@@ -839,7 +839,7 @@ async function syncContractorToMonday(contractor, action, extra = {}) {
         body: JSON.stringify({ query })
       });
 
-      const updateMsg = `פרטי קבלן עודכנו בבארסוף: התמחות ב-${contractor.specialization || ''}, טלפון: ${contractor.phone || ''}, מייל: ${contractor.email || ''}`;
+      const updateMsg = `עדכון פרטי קבלן משנה: התמחות ב-${contractor.specialization || ''}, טלפון ליצירת קשר: ${contractor.phone || 'לא עודכן'}, דוא"ל: ${contractor.email || 'לא עודכן'}.`;
       const updateQuery = `mutation {
         create_update (item_id: ${contractor.monday_id}, body: "${updateMsg.replace(/"/g, '\\"')}") {
           id
@@ -1015,10 +1015,10 @@ async function syncTaskToMonday(projectId, task, action, extra = {}) { // הגד
       });
 
       // 5. פרסום הערה (Update Bubble) במאנדיי עם התראת חריגה במידת הצורך
-      let updateMsg = `המשימה עודכנה בבארסוף: התקדמות ל-${task.progress}%, תאריכים: ${start} עד ${end}`;
+      let updateMsg = `עדכון סטטוס ביצוע: המשימה עודכנה ל-${task.progress}% התקדמות. לוח זמנים מעודכן: ${start} עד ${end}.`;
       if (hasOverrun) {
         const overrunAmt = actualCost - plannedBudget;
-        updateMsg = `⚠️ אזהרה: חריגת תקציב! עלות ביצוע בפועל (${actualCost.toLocaleString()} ₪) חרגה מהתקציב המתוכנן (${plannedBudget.toLocaleString()} ₪) ב-${overrunAmt.toLocaleString()} ₪!`;
+        updateMsg = `שים לב: חריגה מתקציב המטרה במשימה זו. עלות הביצוע בפועל הגיעה ל-${actualCost.toLocaleString()} ₪ לעומת תקציב מתוכנן של ${plannedBudget.toLocaleString()} ₪ (חריגה של ${overrunAmt.toLocaleString()} ₪). נדרש תיאום מול מנהל העבודה בשטח ואישור חריגות.`;
       }
 
       const updateQuery = `mutation {
@@ -1474,7 +1474,7 @@ app.post('/api/projects/:id/export-monday-premium', async (req, res) => { // י�
         await mondayRequest(updateColsQuery);
 
         // הוספת הערה התחלתית (בועת עדכון)
-        const updateMsg = `המשימה יוצאה מתוך בארסוף ללוח הפרימיום. התקדמות נוכחית: ${task.progress}%.`;
+        const updateMsg = `המשימה סונכרנה בהצלחה ללוח העבודה. סטטוס התקדמות נוכחי: %${task.progress}.`;
         const updateQuery = `mutation {
           create_update (item_id: ${mondayItemId}, body: "${updateMsg.replace(/"/g, '\\"')}") {
             id
