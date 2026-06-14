@@ -19,6 +19,8 @@ export function MondayIntegration() { // פונקציית הרכיב הראשי 
   const [loading, setLoading] = useState(true); // מצב המציין האם אנו בטעינה ראשונית
   const [syncing, setSyncing] = useState(false); // מצב המציין האם מתבצע כעת סנכרון פעיל מול מאנדיי
   const [provisioning, setProvisioning] = useState(false); // מצב המציין האם אנו מקימים כעת לוח חדש במאנדיי
+  const [provisioningPremium, setProvisioningPremium] = useState(false); // מצב להקמת לוח פרימיום מובנה
+  const [activeGuideTab, setActiveGuideTab] = useState('gantt'); // טאב פעיל למדריך לוח המחוונים
   const [tasks, setTasks] = useState([]); // מצב לשמירת המשימות המסונכרנות מהמסד
   const [project, setProject] = useState(null); // מצב לשמירת נתוני הפרויקט הנוכחי
   
@@ -87,6 +89,27 @@ export function MondayIntegration() { // פונקציית הרכיב הראשי 
       setProvisioning(false); // ביטול מצב הקמה
     } // סיום הבלוק
   }; // סיום פונקציית הקמה
+
+  const handlePremiumProvision = async () => { // פונקציה להקמת לוח בנייה פרימיום מובנה במאנדיי
+    if (!token) { // בדיקה שקיים מפתח גישה
+      alert('נא להזין מפתח גישה (Token) תקין לצורך יצירת לוח'); // אזהרה
+      return; // יציאה
+    } // סיום תנאי
+    
+    if (!window.confirm('האם ליצור לוח בנייה פרימיום חדש ב-Monday? הלוח יחולק ל-5 שלבי בנייה סטנדרטיים עם עמודות תקציב, עלויות, עדיפות וסטטוס.')) return; // אישור
+    
+    setProvisioningPremium(true); // הפעלת מצב הקמה
+    try { // ביצוע ההקמה בשרת
+      const res = await api.exportPremiumProjectToMonday(projectId, token); // קריאה ל-API
+      alert(`לוח הבנייה פרימיום הוקם בהצלחה! מזהה הלוח: ${res.boardId}. סונכרנו ${res.exported} משימות ב-5 שלבי בנייה.`); // הצלחה
+      setBoardId(res.boardId); // עדכון מזהה הלוח החדש
+      await fetchProjectAndTasks(); // רענון הנתונים
+    } catch (err) { // כשל
+      alert('נכשל בהקמת לוח בנייה פרימיום ב-Monday: ' + err.message); // אזהרה
+    } finally { // סיום
+      setProvisioningPremium(false); // ביטול מצב הקמה
+    } // סיום הבלוק
+  }; // סיום פונקציית הקמת לוח פרימיום
 
   const handleSync = async () => { // פונקציה להפעלת סנכרון אסינכרונית מול Monday.com (משיכה)
     if (!token || !boardId) { // בדיקה שפרטי החיבור אינם ריקים
@@ -250,19 +273,22 @@ export function MondayIntegration() { // פונקציית הרכיב הראשי 
             <p className="text-slate-500 text-xs mt-1.5">הפרויקט אינו מחובר ל-Monday.com. בחר אחת מבין האפשרויות הבאות כדי להתחיל בסנכרון.</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-slate-100">
-            {/* Option A: Auto-Provisioning */}
-            <div className="p-6 space-y-6 flex flex-col justify-between">
+          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-slate-100">
+            {/* Option A: Premium Construction Board Provisioning */}
+            <div className="p-6 space-y-6 flex flex-col justify-between bg-gradient-to-b from-emerald-50/20 to-transparent">
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-bold">א</span>
-                  <h4 className="font-bold text-sm text-slate-800">הקמת לוח פרויקט חדש אוטומטית (מומלץ)</h4>
+                  <h4 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                    הקמת לוח בנייה פרימיום
+                    <span className="inline-flex px-1.5 py-0.5 bg-emerald-600 text-white rounded text-[8px] font-extrabold animate-pulse">מובנה ומומלץ</span>
+                  </h4>
                 </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  הזן את מפתח הגישה שלך, והמערכת תקים לוח חדש מוגדר במלואו במאנדיי (כולל עמודות לוח זמנים והתקדמות) ותייצא אליו את כל המשימות הנוכחיות.
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  הקמת לוח בנייה מלא ומובנה המחולק ל-5 שלבי הבנייה המרכזיים (תכנון, יסודות, שלד, גמרים, מסירה) כולל עמודות תקציב מתוכנן, עלות בפועל, עדיפות, סטטוס ביצוע, ואחוז התקדמות.
                 </p>
                 <div className="space-y-1.5 pt-2">
-                  <label className="block text-[11px] font-semibold text-slate-500">מפתח גישה אישי (API Token)</label>
+                  <label className="block text-[10px] font-semibold text-slate-500">API Token מפתח גישה אישי</label>
                   <input
                     type="password"
                     value={token}
@@ -275,38 +301,81 @@ export function MondayIntegration() { // פונקציית הרכיב הראשי 
               <div className="pt-4">
                 <button
                   type="button"
-                  onClick={handleAutoProvision}
-                  disabled={provisioning || !token}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:cursor-not-allowed"
+                  onClick={handlePremiumProvision}
+                  disabled={provisioningPremium || !token}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:cursor-not-allowed shadow-sm"
                 >
-                  {provisioning ? (
+                  {provisioningPremium ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      מקים לוח ומייצא משימות...
+                      מקים לוח בנייה פרימיום...
                     </>
                   ) : (
                     <>
                       <PlusCircle className="w-4 h-4" />
-                      צור לוח חדש וייצא משימות אוטומטית
+                      הקם לוח פרימיום וסווג משימות
                     </>
                   )}
                 </button>
               </div>
             </div>
 
-            {/* Option B: Link Existing Board */}
+            {/* Option B: Basic Auto-Provisioning */}
             <div className="p-6 space-y-6 flex flex-col justify-between">
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center text-xs font-bold">ב</span>
+                  <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs font-bold">ב</span>
+                  <h4 className="font-bold text-sm text-slate-800">הקמת לוח פרויקט בסיסי</h4>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  הקמת לוח משימות פשוט ושטוח המייצא את כל משימות הפרויקט הנוכחיות עם עמודות לוח זמנים (Timeline) ואחוז התקדמות (Numbers) בלבד.
+                </p>
+                <div className="space-y-1.5 pt-2">
+                  <label className="block text-[10px] font-semibold text-slate-500">API Token מפתח גישה אישי</label>
+                  <input
+                    type="password"
+                    value={token}
+                    onChange={e => setToken(e.target.value)}
+                    placeholder="הזן מפתח גישה של Monday.com"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-amber-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+              <div className="pt-4">
+                <button
+                  type="button"
+                  onClick={handleAutoProvision}
+                  disabled={provisioning || !token}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {provisioning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      מקים לוח פרויקט בסיסי...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-4 h-4" />
+                      צור לוח פרויקט בסיסי ומזג
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Option C: Link Existing Board */}
+            <div className="p-6 space-y-6 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center text-xs font-bold">ג</span>
                   <h4 className="font-bold text-sm text-slate-800">קישור ללוח משימות קיים</h4>
                 </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  אם כבר הקמת לוח ייעודי עבור פרויקט זה במאנדיי, תוכל לקשר אותו ידנית על ידי הזנת מפתח הגישה ומזהה הלוח (Board ID).
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  אם כבר קיים לוח תואם ב-Monday.com שברצונך לקשר במקום להקים לוח חדש, תוכל להזין ידנית את מזהה הלוח ומפתח הגישה לקישור מיידי.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   <div className="space-y-1.5">
-                    <label className="block text-[11px] font-semibold text-slate-500">API Token</label>
+                    <label className="block text-[10px] font-semibold text-slate-500">API Token</label>
                     <input
                       type="password"
                       value={token}
@@ -316,7 +385,7 @@ export function MondayIntegration() { // פונקציית הרכיב הראשי 
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-[11px] font-semibold text-slate-500">מזהה לוח (Board ID)</label>
+                    <label className="block text-[10px] font-semibold text-slate-500">Board ID</label>
                     <input
                       type="text"
                       value={boardId}
@@ -335,7 +404,7 @@ export function MondayIntegration() { // פונקציית הרכיב הראשי 
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#6161ff] hover:bg-[#4d4dcc] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:cursor-not-allowed"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  קשר לוח קיים ומשוך משימות
+                  קשר לוח קיים וסנכרן נתונים
                 </button>
               </div>
             </div>
@@ -343,123 +412,369 @@ export function MondayIntegration() { // פונקציית הרכיב הראשי 
         </div>
       ) : (
         // === Connected State ===
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Connection Status Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-sm text-slate-800 mb-4 flex items-center gap-2">
-                <Database className="w-4.5 h-4.5 text-[#6161ff]" />
-                חיבור פעיל מול Monday.com
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl">
-                  <span className="text-xs text-slate-500 font-bold">סטטוס חיבור</span>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
-                    <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-pulse"></span>
-                    מחובר ומסונכרן
-                  </span>
-                </div>
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Connection Status Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-slate-800 mb-4 flex items-center gap-2">
+                  <Database className="w-4.5 h-4.5 text-[#6161ff]" />
+                  חיבור פעיל מול Monday.com
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl">
+                    <span className="text-xs text-slate-500 font-bold">סטטוס חיבור</span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
+                      <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-pulse"></span>
+                      מחובר ומסונכרן
+                    </span>
+                  </div>
 
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-bold">קישור ללוח</span>
-                  <a
-                    href={`https://barsuf.monday.com/boards/${boardId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[#6161ff] hover:underline font-bold"
-                  >
-                    פתח לוח במאנדיי
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </a>
-                </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">קישור ללוח</span>
+                    <a
+                      href={`https://monday-class-colman-q2-2026.monday.com/boards/${boardId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[#6161ff] hover:underline font-bold"
+                    >
+                      פתח לוח במאנדיי
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
 
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-bold">מזהה לוח (Board ID)</span>
-                  <span className="font-mono text-slate-800 font-bold bg-slate-100 px-2 py-0.5 rounded">{boardId}</span>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">מזהה לוח (Board ID)</span>
+                    <span className="font-mono text-slate-800 font-bold bg-slate-100 px-2 py-0.5 rounded">{boardId}</span>
+                  </div>
                 </div>
               </div>
+              
+              <div className="mt-6 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={handleDisconnect}
+                  className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
+                >
+                  נתק חיבור ל-Monday.com
+                </button>
+              </div>
             </div>
-            
-            <div className="mt-6 border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={handleDisconnect}
-                className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
-              >
-                נתק חיבור ל-Monday.com
-              </button>
+
+            {/* Connection Settings Form */}
+            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+              <h3 className="font-bold text-sm text-slate-800 mb-4 flex items-center gap-2">
+                <Key className="w-4.5 h-4.5 text-[var(--color-brand)]" />
+                הגדרות סנכרון ואינטגרציה
+              </h3>
+              
+              <form onSubmit={handleSaveCredentials} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-500">API Token מפתח גישה</label>
+                    <input
+                      type="password"
+                      value={token}
+                      onChange={e => setToken(e.target.value)}
+                      placeholder="הזן מפתח גישה חדש לעדכון"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[var(--color-brand)] focus:bg-white transition-all"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-500">מזהה לוח (Board ID)</label>
+                    <input
+                      type="text"
+                      value={boardId}
+                      onChange={e => setBoardId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[var(--color-brand)] focus:bg-white transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Auto sync toggle */}
+                <div className="flex items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setAutoSync(!autoSync)}
+                    className="text-[var(--color-brand)] focus:outline-none cursor-pointer"
+                  >
+                    {autoSync ? (
+                      <ToggleRight className="w-9 h-9" />
+                    ) : (
+                      <ToggleLeft className="w-9 h-9 text-slate-400" />
+                    )}
+                  </button>
+                  <div className="text-right">
+                    <h5 className="text-xs font-bold text-slate-800">סנכרון דו-כיווני אוטומטי בזמן אמת</h5>
+                    <p className="text-[10px] text-slate-500 mt-0.5">כל הוספה, עדכון או מחיקה של משימה באפליקציה תתעדכן מיידית בלוח ה-Monday שלך</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    עדכן הגדרות חיבור
+                  </button>
+
+                  {connectionSaved && (
+                    <span className="text-emerald-600 text-xs font-bold flex items-center gap-1 animate-fade-in">
+                      <CheckCircle className="w-4 h-4" />
+                      ההגדרות עודכנו בהצלחה!
+                    </span>
+                  )}
+                </div>
+              </form>
             </div>
           </div>
 
-          {/* Connection Settings Form */}
-          <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-            <h3 className="font-bold text-sm text-slate-800 mb-4 flex items-center gap-2">
-              <Key className="w-4.5 h-4.5 text-[var(--color-brand)]" />
-              הגדרות סנכרון ואינטגרציה
-            </h3>
-            
-            <form onSubmit={handleSaveCredentials} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2 space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-500">API Token מפתח גישה</label>
-                  <input
-                    type="password"
-                    value={token}
-                    onChange={e => setToken(e.target.value)}
-                    placeholder="הזן מפתח גישה חדש לעדכון"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[var(--color-brand)] focus:bg-white transition-all"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-500">מזהה לוח (Board ID)</label>
-                  <input
-                    type="text"
-                    value={boardId}
-                    onChange={e => setBoardId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[var(--color-brand)] focus:bg-white transition-all"
-                    required
-                  />
-                </div>
+          {/* Premium Monday Dashboard Setup Guide */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-slate-50 border-b border-slate-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                  <BarChart3 className="w-4.5 h-4.5 text-[#6161ff]" />
+                  מדריך להקמת לוח מחוונים (Dashboard) מקצועי ב-Monday.com
+                </h3>
+                <p className="text-slate-500 text-[11px] mt-1">
+                  המלצות וטיפים מעשיים להוספת וידג׳טים בלוח ה-Monday שלך להצגת התמונה המלאה של פרויקט הבנייה
+                </p>
               </div>
-
-              {/* Auto sync toggle */}
-              <div className="flex items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              
+              {/* Tab selectors */}
+              <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
                 <button
                   type="button"
-                  onClick={() => setAutoSync(!autoSync)}
-                  className="text-[var(--color-brand)] focus:outline-none cursor-pointer"
+                  onClick={() => setActiveGuideTab('gantt')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeGuideTab === 'gantt' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                 >
-                  {autoSync ? (
-                    <ToggleRight className="w-9 h-9" />
-                  ) : (
-                    <ToggleLeft className="w-9 h-9 text-slate-400" />
-                  )}
+                  תרשים גאנט (Gantt)
                 </button>
-                <div className="text-right">
-                  <h5 className="text-xs font-bold text-slate-800">סנכרון דו-כיווני אוטומטי בזמן אמת</h5>
-                  <p className="text-[10px] text-slate-500 mt-0.5">כל הוספה, עדכון או מחיקה של משימה באפליקציה תתעדכן מיידית בלוח ה-Monday שלך</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  type="button"
+                  onClick={() => setActiveGuideTab('battery')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeGuideTab === 'battery' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                 >
-                  עדכן הגדרות חיבור
+                  אחוז התקדמות (Battery)
                 </button>
-
-                {connectionSaved && (
-                  <span className="text-emerald-600 text-xs font-bold flex items-center gap-1 animate-fade-in">
-                    <CheckCircle className="w-4 h-4" />
-                    ההגדרות עודכנו בהצלחה!
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setActiveGuideTab('budget')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeGuideTab === 'budget' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  תקציבים ועלויות (Numbers)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveGuideTab('charts')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeGuideTab === 'charts' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  תרשימי השוואה (Charts)
+                </button>
               </div>
-            </form>
+            </div>
+            
+            <div className="p-6">
+              {activeGuideTab === 'gantt' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                  <div className="space-y-4">
+                    <span className="inline-flex px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold">מבט על לוחות זמנים</span>
+                    <h4 className="text-base font-bold text-slate-800">וידג׳ט גאנט (Gantt Chart Widget)</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      מאפשר לך לעקוב אחר נתיב קריטי של פרויקט הבנייה, התלויות בין משימות ולוחות זמנים של כל קבלני המשנה בפריסה ויזואלית.
+                    </p>
+                    <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <h5 className="text-xs font-bold text-slate-700">איך להקים במאנדיי?</h5>
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 list-decimal list-inside pr-1">
+                        <li>פתח את הלוח שנוצר ב-Monday.com.</li>
+                        <li>לחץ על כפתור ה-<strong>+</strong> (Add View) בראש הלוח.</li>
+                        <li>בחר ב-<strong>Gantt</strong> מרשימת התצוגות.</li>
+                        <li>הגדר את הגאנט שיקרא את עמודת <strong>"לוח זמנים"</strong> כציר הזמן שלו.</li>
+                        <li>קבע את הקיבוץ (Group by) לפי <strong>"Group"</strong> להצגה לפי 5 שלבי הבנייה.</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="flex justify-center bg-indigo-50/40 p-6 rounded-2xl border border-indigo-100/50">
+                    <div className="w-full max-w-[320px] bg-white rounded-xl shadow-md p-4 space-y-3 font-sans text-right" dir="rtl">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-800">תרשים Gantt פרויקט</span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#6161ff]"></span>
+                      </div>
+                      <div className="space-y-2.5">
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                            <span>תכנון ורישוי</span>
+                            <span>14/06 - 20/06</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden relative">
+                            <div className="absolute top-0 right-2 w-[40%] bg-indigo-500 h-full rounded-full"></div>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                            <span>תשתיות ויסודות</span>
+                            <span>21/06 - 05/07</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden relative">
+                            <div className="absolute top-0 right-10 w-[55%] bg-indigo-400 h-full rounded-full"></div>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                            <span>שלד וקונסטרוקציה</span>
+                            <span>06/07 - 30/08</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden relative">
+                            <div className="absolute top-0 right-24 w-[30%] bg-slate-300 h-full rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeGuideTab === 'battery' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                  <div className="space-y-4">
+                    <span className="inline-flex px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-bold">מעקב התקדמות כללי</span>
+                    <h4 className="text-base font-bold text-slate-800">וידג׳ט סוללה (Battery Progress Widget)</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      מציג תמונה מרוכזת של אחוז המשימות שהושלמו מול אלו שנמצאות בעבודה או טרם החלו, המעניק מראה מהיר על קצב התקדמות פרויקט הבנייה.
+                    </p>
+                    <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <h5 className="text-xs font-bold text-slate-700">איך להקים במאנדיי?</h5>
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 list-decimal list-inside pr-1">
+                        <li>לחץ על <strong>Add View</strong> או פתח לוח מחוונים (Dashboard) נפרד.</li>
+                        <li>הוסף וידג׳ט בשם <strong>Battery</strong>.</li>
+                        <li>הגדר את מקור הנתונים של הוידג׳ט לעמודת הסטטוס: <strong>"סטטוס ביצוע"</strong>.</li>
+                        <li>הגדר את הצבעים במאנדיי: ירוק עבור "הושלם", כחול עבור "בעבודה", אפור עבור "טרם החל", ואדום ל"מעוכב".</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="flex justify-center bg-emerald-50/40 p-6 rounded-2xl border border-emerald-100/50">
+                    <div className="w-full max-w-[320px] bg-white rounded-xl shadow-md p-4 space-y-3 font-sans text-right" dir="rtl">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-800">מד התקדמות פרויקט - סוללה</span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex h-7 rounded-lg overflow-hidden border border-slate-200">
+                          <div className="w-[30%] bg-emerald-500 flex items-center justify-center text-[9px] text-white font-bold">30%</div>
+                          <div className="w-[45%] bg-[#6161ff] flex items-center justify-center text-[9px] text-white font-bold">45%</div>
+                          <div className="w-[15%] bg-slate-300 flex items-center justify-center text-[9px] text-slate-600 font-bold">15%</div>
+                          <div className="w-[10%] bg-red-500 flex items-center justify-center text-[9px] text-white font-bold">10%</div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1 text-[9px] text-center text-slate-500 font-medium">
+                          <div><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 ml-1"></span>הושלם</div>
+                          <div><span className="inline-block w-2 h-2 rounded-full bg-[#6161ff] ml-1"></span>בעבודה</div>
+                          <div><span className="inline-block w-2 h-2 rounded-full bg-slate-300 ml-1"></span>טרם החל</div>
+                          <div><span className="inline-block w-2 h-2 rounded-full bg-red-500 ml-1"></span>מעוכב</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeGuideTab === 'budget' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                  <div className="space-y-4">
+                    <span className="inline-flex px-2 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-[10px] font-bold">מעקב תקציבים ועלויות</span>
+                    <h4 className="text-base font-bold text-slate-800">וידג׳ט תקציב (Numbers Widgets)</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      עמודות ה-Numbers בלוח הפרימיום מאפשרות סיכום אוטומטי של עלויות בפועל מול תקציב מתוכנן לכל שלב ולפרויקט כולו.
+                    </p>
+                    <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <h5 className="text-xs font-bold text-slate-700">איך להקים במאנדיי?</h5>
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 list-decimal list-inside pr-1">
+                        <li>פתח את לוח הפרויקט במאנדיי.</li>
+                        <li>בתחתית כל קבוצה (Group) תוכל לראות את שורת הסיכום של עמודות התקציב והעלות בפועל.</li>
+                        <li>בלוח המחוונים (Dashboard), תוכל להוסיף וידג׳ט <strong>Numbers</strong>.</li>
+                        <li>הגדר את הוידג׳ט שיציג את הסכום הכולל (Sum) של עמודת <strong>"תקציב מתוכנן"</strong>.</li>
+                        <li>הסר וידג׳ט Numbers נוסף שיציג את הסכום של עמודת <strong>"עלות בפועל"</strong>.</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="flex justify-center bg-amber-50/40 p-6 rounded-2xl border border-amber-100/50">
+                    <div className="w-full max-w-[320px] bg-white rounded-xl shadow-md p-4 space-y-3 font-sans text-right" dir="rtl">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-800">סיכום תקציב הפרויקט</span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                          <span className="text-[9px] text-slate-400 block mb-1">סה"כ תקציב מתוכנן</span>
+                          <span className="text-sm font-bold text-slate-800">205,000 ₪</span>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                          <span className="text-[9px] text-slate-400 block mb-1">עלות ביצוע בפועל</span>
+                          <span className="text-sm font-bold text-emerald-600">83,500 ₪</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeGuideTab === 'charts' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                  <div className="space-y-4">
+                    <span className="inline-flex px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg text-[10px] font-bold">תרשימי השוואה ואנליטיקה</span>
+                    <h4 className="text-base font-bold text-slate-800">וידג׳ט תרשים (Chart Widget - Bar/Line)</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      מאפשר השוואה גרפית של תקציב מתוכנן מול עלות בפועל לפי קבוצות (שלבי בנייה), כדי לזהות חריגות תקציביות בזמן אמת.
+                    </p>
+                    <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <h5 className="text-xs font-bold text-slate-700">איך להקים במאנדיי?</h5>
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 list-decimal list-inside pr-1">
+                        <li>בלוח המחוונים (Dashboard), הוסף וידג׳ט מסוג <strong>Chart</strong>.</li>
+                        <li>בחר בגרף מסוג <strong>Bar Chart</strong> (עמודות).</li>
+                        <li>הגדר את ציר ה-X לפי <strong>"Group"</strong> (שלבי הבנייה).</li>
+                        <li>בציר ה-Y (Values), בחר להציג שתי עמודות: <strong>"תקציב מתוכנן"</strong> ו-<strong>"עלות בפועל"</strong>.</li>
+                        <li>שנה את סוג ההצגה ל-Stack או Split להשוואה נוחה.</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="flex justify-center bg-purple-50/40 p-6 rounded-2xl border border-purple-100/50">
+                    <div className="w-full max-w-[320px] bg-white rounded-xl shadow-md p-4 space-y-3 font-sans text-right" dir="rtl">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-800">תקציב מתוכנן מול עלות בפועל</span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                      </div>
+                      <div className="h-24 flex items-end gap-3 justify-center pt-2">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex gap-1 items-end h-16">
+                            <div className="w-2.5 bg-indigo-500 h-16 rounded-t"></div>
+                            <div className="w-2.5 bg-emerald-500 h-6 rounded-t"></div>
+                          </div>
+                          <span className="text-[8px] text-slate-400">תכנון</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex gap-1 items-end h-16">
+                            <div className="w-2.5 bg-indigo-500 h-12 rounded-t"></div>
+                            <div className="w-2.5 bg-emerald-500 h-10 rounded-t"></div>
+                          </div>
+                          <span className="text-[8px] text-slate-400">תשתיות</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex gap-1 items-end h-16">
+                            <div className="w-2.5 bg-indigo-500 h-14 rounded-t"></div>
+                            <div className="w-2.5 bg-emerald-500 h-4 rounded-t"></div>
+                          </div>
+                          <span className="text-[8px] text-slate-400">שלד</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

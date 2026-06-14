@@ -248,6 +248,20 @@ export const api = { // יצירת השליח שמדבר עם השרת
     return response.json(); // החזרת פרטי הלוח החדש שנוצר
   }, // סיום פונקציית הייצוא והקמה
   
+  // ייצוא פרימיום מובנה ומתקדם של משימות לפרויקט חדש ב-Monday.com
+  exportPremiumProjectToMonday: async (projectId, token) => {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/export-monday-premium`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'נכשל בהקמת לוח בנייה פרימיום ב-Monday.com');
+    }
+    return response.json();
+  },
+  
   // קבלת הגדרות סנכרון גלובליות של קבלנים מול Monday.com
   getMondayContractorsSettings: async () => {
     const response = await fetch(`${API_BASE_URL}/settings/monday-contractors`);

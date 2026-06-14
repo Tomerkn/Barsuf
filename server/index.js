@@ -1121,6 +1121,292 @@ app.post('/api/projects/:id/export-monday', async (req, res) => { // ייצוא 
   }
 });
 
+app.post('/api/projects/:id/export-monday-premium', async (req, res) => { // ייצוא פרימיום מתקדם ללוח בנייה מובנה במאנדיי
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+
+  try {
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // פונקציית עזר לביצוע פניות מול Monday API
+    const mondayRequest = async (query) => {
+      const res = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token,
+          'API-Version': '2024-01'
+        },
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json();
+      if (data.errors) {
+        throw new Error(data.errors[0]?.message || 'Monday API error');
+      }
+      return data;
+    };
+
+    // 1. יצירת לוח חדש
+    const createBoardQuery = `mutation {
+      create_board (board_name: "בארסוף פרימיום - ${project.name.replace(/"/g, '\\"')}", board_kind: public) {
+        id
+      }
+    }`;
+    const boardData = await mondayRequest(createBoardQuery);
+    const boardId = boardData.data.create_board.id;
+
+    // 2. יצירת עמודות מתקדמות
+    let timelineColId = '';
+    let progressColId = '';
+    let statusColId = '';
+    let priorityColId = '';
+    let plannedBudgetColId = '';
+    let actualCostColId = '';
+    let ownerColId = '';
+
+    try {
+      const colRes = await mondayRequest(`mutation { create_column (board_id: ${boardId}, title: "לוח זמנים", column_type: timeline) { id } }`);
+      timelineColId = colRes.data.create_column.id;
+    } catch (e) { console.error('Failed to create timeline col:', e.message); }
+
+    try {
+      const colRes = await mondayRequest(`mutation { create_column (board_id: ${boardId}, title: "התקדמות %", column_type: numbers) { id } }`);
+      progressColId = colRes.data.create_column.id;
+    } catch (e) { console.error('Failed to create progress col:', e.message); }
+
+    try {
+      const colRes = await mondayRequest(`mutation { create_column (board_id: ${boardId}, title: "סטטוס ביצוע", column_type: status) { id } }`);
+      statusColId = colRes.data.create_column.id;
+    } catch (e) { console.error('Failed to create status col:', e.message); }
+
+    try {
+      const colRes = await mondayRequest(`mutation { create_column (board_id: ${boardId}, title: "עדיפות", column_type: status) { id } }`);
+      priorityColId = colRes.data.create_column.id;
+    } catch (e) { console.error('Failed to create priority col:', e.message); }
+
+    try {
+      const colRes = await mondayRequest(`mutation { create_column (board_id: ${boardId}, title: "תקציב מתוכנן (₪)", column_type: numbers) { id } }`);
+      plannedBudgetColId = colRes.data.create_column.id;
+    } catch (e) { console.error('Failed to create planned budget col:', e.message); }
+
+    try {
+      const colRes = await mondayRequest(`mutation { create_column (board_id: ${boardId}, title: "עלות בפועל (₪)", column_type: numbers) { id } }`);
+      actualCostColId = colRes.data.create_column.id;
+    } catch (e) { console.error('Failed to create actual cost col:', e.message); }
+
+    try {
+      const colRes = await mondayRequest(`mutation { create_column (board_id: ${boardId}, title: "אחראי", column_type: people) { id } }`);
+      ownerColId = colRes.data.create_column.id;
+    } catch (e) { console.error('Failed to create owner col:', e.message); }
+
+    // 3. יצירת 5 קבוצות בנייה בלוח בסדר הפוך (כדי שהסדר בלוח יהיה ישר מלמעלה למטה)
+    const groupNames = [
+      "שלב ה': מסירה ושנת בדק",
+      "שלב ד': גמר ומערכות",
+      "שלב ג': שלד וקונסטרוקציה",
+      "שלב ב': תשתיות ויסודות",
+      "שלב א': תכנון ורישוי"
+    ];
+    const groupMap = {};
+    for (const groupName of groupNames) {
+      try {
+        const groupRes = await mondayRequest(`mutation {
+          create_group (board_id: ${boardId}, group_name: "${groupName}") {
+            id
+          }
+        }`);
+        if (groupRes.data?.create_group?.id) {
+          groupMap[groupName] = groupRes.data.create_group.id;
+        }
+      } catch (e) {
+        console.error(`Failed to create group ${groupName}:`, e.message);
+      }
+    }
+
+    // 4. ניקוי קבוצות ברירת מחדל של הלוח שאינן שייכות ל-5 שלבי הבנייה שלנו
+    try {
+      const boardInfo = await mondayRequest(`query {
+        boards (ids: [${boardId}]) {
+          groups {
+            id
+            title
+          }
+        }
+      }`);
+      const existingGroups = boardInfo.data?.boards?.[0]?.groups || [];
+      const customGroupTitles = new Set([
+        "שלב א': תכנון ורישוי",
+        "שלב ב': תשתיות ויסודות",
+        "שלב ג': שלד וקונסטרוקציה",
+        "שלב ד': גמר ומערכות",
+        "שלב ה': מסירה ושנת בדק"
+      ]);
+      for (const g of existingGroups) {
+        if (!customGroupTitles.has(g.title)) {
+          try {
+            await mondayRequest(`mutation {
+              delete_group (board_id: ${boardId}, group_id: "${g.id}") {
+                id
+              }
+            }`);
+          } catch (e) {
+            console.error(`Failed to delete default group ${g.title}:`, e.message);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to clean up default groups:', e.message);
+    }
+
+    // 5. סיווג משימות הפרויקט וייצואן לקבוצות המתאימות עם ערכי העמודות
+    const tasks = db.prepare('SELECT * FROM tasks WHERE project_id = ?').all(req.params.id);
+    let exported = 0;
+
+    // פונקציית סיווג לפי מילים בעברית
+    const classifyTaskGroup = (taskName) => {
+      const name = taskName.toLowerCase();
+      const planningKeywords = ['תכנון', 'רישוי', 'אישור', 'היתר', 'אדריכל', 'מהנדס', 'מדידה', 'תוכני', 'ייעוץ', 'חוזה', 'מכרז', 'בדיק'];
+      const foundationsKeywords = ['תשתיות', 'יסוד', 'חפיר', 'דיפון', 'כלונס', 'ביסוס', 'מילוי', 'עפר', 'יישור'];
+      const structureKeywords = ['שלד', 'קונסטרוקציה', 'בטון', 'ברזל', 'עמוד', 'תקר', 'קיר', 'יציק', 'בלוק', 'בנייה', 'ממ"ד', 'טפסנות', 'פיגום', 'מדרג'];
+      const finishingKeywords = ['גמר', 'מערכת', 'חשמל', 'אינסטלציה', 'טיח', 'צבע', 'ריצוף', 'חיפוי', 'מיזוג', 'חלון', 'אלומיניום', 'דלת', 'גבס', 'שפכטל', 'סניטר', 'שיש', 'מטבח', 'איטום'];
+      const handoverKeywords = ['מסיר', 'בדק', 'טופס 4', 'כיבוי אש', 'מפתח', 'אכלוס', 'פרוטוקול', 'נקי'];
+
+      for (const kw of handoverKeywords) {
+        if (name.includes(kw)) return "שלב ה': מסירה ושנת בדק";
+      }
+      for (const kw of finishingKeywords) {
+        if (name.includes(kw)) return "שלב ד': גמר ומערכות";
+      }
+      for (const kw of structureKeywords) {
+        if (name.includes(kw)) return "שלב ג': שלד וקונסטרוקציה";
+      }
+      for (const kw of foundationsKeywords) {
+        if (name.includes(kw)) return "שלב ב': תשתיות ויסודות";
+      }
+      for (const kw of planningKeywords) {
+        if (name.includes(kw)) return "שלב א': תכנון ורישוי";
+      }
+      return "שלב א': תכנון ורישוי"; // ברירת מחדל
+    };
+
+    for (const task of tasks) {
+      const targetGroupTitle = classifyTaskGroup(task.name);
+      const groupId = groupMap[targetGroupTitle] || '';
+
+      // יצירת המשימה בקבוצה המתאימה במאנדיי
+      const createItemQuery = `mutation {
+        create_item (
+          board_id: ${boardId},
+          ${groupId ? `group_id: "${groupId}",` : ''}
+          item_name: "${task.name.replace(/"/g, '\\"')}"
+        ) {
+          id
+        }
+      }`;
+
+      const itemRes = await mondayRequest(createItemQuery);
+      if (itemRes.data?.create_item?.id) {
+        const mondayItemId = itemRes.data.create_item.id;
+        db.prepare('UPDATE tasks SET monday_id = ? WHERE id = ?').run(mondayItemId, task.id);
+
+        // בניית ערכי העמודות
+        const colValues = {};
+
+        // לוח זמנים
+        if (timelineColId) {
+          const start = task.start_date || new Date().toISOString().split('T')[0];
+          const end = task.end_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+          colValues[timelineColId] = { from: start, to: end };
+        }
+
+        // אחוז התקדמות
+        if (progressColId) {
+          colValues[progressColId] = task.progress;
+        }
+
+        // סטטוס ביצוע
+        if (statusColId) {
+          let statusText = 'טרם החל';
+          if (task.progress === 100) {
+            statusText = 'הושלם';
+          } else if (task.progress > 0) {
+            statusText = 'בעבודה';
+          } else {
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (task.end_date && task.end_date < todayStr) {
+              statusText = 'מעוכב';
+            }
+          }
+          colValues[statusColId] = { label: statusText };
+        }
+
+        // עדיפות
+        if (priorityColId) {
+          let priorityLabel = 'בינונית';
+          const nameLower = task.name.toLowerCase();
+          if (nameLower.includes('יסוד') || nameLower.includes('שלד') || nameLower.includes('בטון') || nameLower.includes('איטום') || nameLower.includes('קריטי')) {
+            priorityLabel = 'גבוהה';
+          } else if (nameLower.includes('ניקיון') || nameLower.includes('צבע') || nameLower.includes('בדק')) {
+            priorityLabel = 'נמוכה';
+          }
+          colValues[priorityColId] = { label: priorityLabel };
+        }
+
+        // חישוב תקציב מתוכנן ועלות בפועל מדומה למטרת תצוגה מרהיבה
+        let plannedBudget = 15000;
+        const nameLower = task.name.toLowerCase();
+        if (nameLower.includes('שלד') || nameLower.includes('בטון') || nameLower.includes('קונסטרוקציה')) {
+          plannedBudget = 85000;
+        } else if (nameLower.includes('יסוד') || nameLower.includes('תשתיות') || nameLower.includes('חפירה')) {
+          plannedBudget = 50000;
+        } else if (nameLower.includes('גמר') || nameLower.includes('מערכות') || nameLower.includes('חשמל') || nameLower.includes('אינסטלציה')) {
+          plannedBudget = 35000;
+        } else if (nameLower.includes('טיח') || nameLower.includes('ריצוף') || nameLower.includes('צבע')) {
+          plannedBudget = 20000;
+        }
+        const actualCost = Math.round(plannedBudget * (task.progress / 100));
+
+        if (plannedBudgetColId) colValues[plannedBudgetColId] = plannedBudget;
+        if (actualCostColId) colValues[actualCostColId] = actualCost;
+
+        // עדכון עמודות במאנדיי
+        const colValuesStr = JSON.stringify(colValues);
+        const updateColsQuery = `mutation {
+          change_multiple_column_values (
+            board_id: ${boardId},
+            item_id: ${mondayItemId},
+            column_values: ${JSON.stringify(colValuesStr)}
+          ) {
+            id
+          }
+        }`;
+        await mondayRequest(updateColsQuery);
+
+        // הוספת הערה התחלתית (בועת עדכון)
+        const updateMsg = `המשימה יוצאה מתוך בארסוף ללוח הפרימיום. התקדמות נוכחית: ${task.progress}%.`;
+        const updateQuery = `mutation {
+          create_update (item_id: ${mondayItemId}, body: "${updateMsg.replace(/"/g, '\\"')}") {
+            id
+          }
+        }`;
+        await mondayRequest(updateQuery);
+
+        exported++;
+      }
+    }
+
+    // 6. עדכון מסד הנתונים המקומי
+    db.prepare('UPDATE projects SET monday_board_id = ?, monday_token = ?, monday_auto_sync = 1 WHERE id = ?')
+      .run(boardId, token, req.params.id);
+
+    res.json({ success: true, boardId, exported });
+  } catch (err) {
+    console.error('Premium export to Monday failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/projects/:id/sync-monday', async (req, res) => {
   const { token, boardId } = req.body;
   if (!token || !boardId) return res.status(400).json({ error: 'Missing token or boardId' });
