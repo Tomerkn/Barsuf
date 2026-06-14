@@ -1486,7 +1486,7 @@ app.post('/api/projects/:id/export-monday-premium', async (req, res) => { // י�
       }
     }
 
-    // 5.5 יצירת תצוגות מובנות אוטומטית (גאנט וקנבן) במאנדיי
+    // 5.5 יצירת תצוגות מובנות אוטומטית (גאנט, קנבן וגרפים) במאנדיי
     try {
       await mondayRequest(`mutation {
         create_view (board_id: ${boardId}, title: "גאנט פרויקט", type: "gantt") { id }
@@ -1501,6 +1501,14 @@ app.post('/api/projects/:id/export-monday-premium', async (req, res) => { // י�
       }`);
     } catch (e) {
       console.error('Failed to create Kanban view:', e.message);
+    }
+
+    try {
+      await mondayRequest(`mutation {
+        create_view (board_id: ${boardId}, title: "גרפים וניתוח פיננסי", type: "chart") { id }
+      }`);
+    } catch (e) {
+      console.error('Failed to create Chart view:', e.message);
     }
 
     // 6. עדכון מסד הנתונים המקומי
