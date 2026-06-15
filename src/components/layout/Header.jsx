@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { Bell, Search, User, LogOut, Settings as SettingsIcon, Menu, Moon, Sun, AlertTriangle, AlertCircle, Clock, Package, Wrench, FileText, DollarSign } from 'lucide-react';
 import { api } from '../../services/api';
 
@@ -21,6 +23,7 @@ const CATEGORY_LABELS = {
 };
 
 export function Header({ toggleMobileMenu, profile, onLogout }) {
+  const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -29,16 +32,69 @@ export function Header({ toggleMobileMenu, profile, onLogout }) {
   const [newAlertPing, setNewAlertPing] = useState(false);
   const alertsRef = useRef(null);
   const prevCountRef = useRef(0);
+  const prevAlertIdsRef = useRef(new Set());
 
   const fetchAlerts = async () => {
     try {
       const data = await api.getSystemNotifications();
       setAlerts(data);
-      // אם יש התראות חדשות — עשה ping
-      if (data.length > prevCountRef.current) {
+      
+      const newAlertIds = new Set(data.map(a => a.id));
+      const oldAlertIds = prevAlertIdsRef.current;
+      
+      // חילוץ התראות חדשות לגמרי שלא היו קודם
+      const strictlyNewAlerts = data.filter(a => !oldAlertIds.has(a.id));
+      
+      if (strictlyNewAlerts.length > 0 && oldAlertIds.size > 0) { // לא להקפיץ הכל בטעינה ראשונית
         setNewAlertPing(true);
         setTimeout(() => setNewAlertPing(false), 2000);
+        
+        strictlyNewAlerts.forEach(newAlert => {
+          toast.custom((t) => (
+            <div
+              className={`${
+                t.visible ? 'animate-enter' : 'animate-leave'
+              } max-w-md w-full bg-white dark:bg-slate-900 shadow-xl rounded-2xl pointer-events-auto flex ring-1 ring-black ring-opacity-5 overflow-hidden cursor-pointer hover:bg-slate-50 transition-colors border-r-4 ${newAlert.type === 'danger' ? 'border-red-500' : 'border-amber-400'}`}
+              onClick={() => {
+                toast.dismiss(t.id);
+                navigate(`/projects/${newAlert.projectId}`);
+              }}
+              dir="rtl"
+            >
+              <div className="flex-1 w-0 p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0 pt-0.5">
+                    <span className={`flex items-center justify-center h-8 w-8 rounded-full ${newAlert.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                      {newAlert.type === 'danger' ? <AlertCircle className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+                    </span>
+                  </div>
+                  <div className="mr-3 flex-1">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {newAlert.title}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                      {newAlert.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex border-r border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast.dismiss(t.id);
+                  }}
+                  className="w-full border border-transparent rounded-none p-4 flex items-center justify-center text-sm font-medium text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ));
+        });
       }
+      
+      prevAlertIdsRef.current = newAlertIds;
       prevCountRef.current = data.length;
     } catch (e) {
       console.error('Error fetching alerts', e);
@@ -147,11 +203,13 @@ export function Header({ toggleMobileMenu, profile, onLogout }) {
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {alerts.length > 0 ? (
                   alerts.map(alert => (
-                    <a
+                    <div
                       key={alert.id}
-                      href={`/projects/${alert.projectId}`}
-                      className={`block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-right group ${alert.type === 'danger' ? 'border-r-[3px] border-red-500' : 'border-r-[3px] border-amber-400'}`}
-                      onClick={() => setIsAlertOpen(false)}
+                      onClick={() => {
+                        setIsAlertOpen(false);
+                        navigate(`/projects/${alert.projectId}`);
+                      }}
+                      className={`block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-right group cursor-pointer ${alert.type === 'danger' ? 'border-r-[3px] border-red-500' : 'border-r-[3px] border-amber-400'}`}
                     >
                       <div className="flex items-start gap-3">
                         {/* אייקון קטגוריה */}
@@ -168,7 +226,7 @@ export function Header({ toggleMobileMenu, profile, onLogout }) {
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">{alert.message}</p>
                         </div>
                       </div>
-                    </a>
+                    </div>
                   ))
                 ) : (
                   <div className="py-10 text-center">

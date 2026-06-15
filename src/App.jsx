@@ -20,6 +20,8 @@ import Tenders from './pages/Tenders'; // מביאים את מסך המכרזי�
 import { AIFloatingWidget } from './components/ui/AIFloatingWidget'; // מביאים את הבוט החכם שצף על המסך
 import { ProfileSelection } from './pages/ProfileSelection'; // מביאים את מסך בחירת המשתמש
 import { RoiDashboard } from './pages/RoiDashboard'; // מסך ROI
+import { Toaster } from 'react-hot-toast'; // ספריית התראות קופצות
+
 function AppContent() { // הפונקציה הראשית שמחליטה מה להראות באתר
   const [selectedProfile, setSelectedProfile] = useState(() => { // בודקים אם יש משתמש שכבר נבחר קודם
     try {
@@ -56,6 +58,7 @@ function AppContent() { // הפונקציה הראשית שמחליטה מה ל�
 
   return ( // אם יש משתמש - מראים את כל האתר
     <div className="flex h-screen bg-background overflow-hidden text-text-primary" dir="rtl"> {/* המבנה הראשי של האתר, מימין לשמאל */}
+      <Toaster position="top-left" toastOptions={{ duration: 6000 }} />
       {selectedProfile ? (
         <Sidebar isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
       ) : null}
