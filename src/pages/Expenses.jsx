@@ -117,7 +117,7 @@ export function Expenses() { // דף ניהול הוצאות וחשבוניות
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>; // סמל טעינה
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-[96%] mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">הוצאות וחשבוניות</h1> {/* כותרת הדף */}

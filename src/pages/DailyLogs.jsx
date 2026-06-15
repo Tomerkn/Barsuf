@@ -91,7 +91,7 @@ export function DailyLogs() { // דף יומני עבודה יומיים
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-[var(--color-brand)] w-8 h-8" /></div>; // סמל טעינה
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-[96%] mx-auto">
       {/* כותרת הדף */}
       <div className="flex justify-between items-center mb-8">
         <div>

@@ -226,7 +226,7 @@ export function MondayIntegration() {
   })); // סיום מיפוי
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 text-right" dir="rtl">
+    <div className="p-8 max-w-[96%] mx-auto space-y-8 text-right" dir="rtl">
       
       {/* כותרת דף אינטגרציה */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
