@@ -83,6 +83,14 @@ const getGeminiClients = () => {
 const GEMINI_FLASH_CHAIN = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash'];
 const GEMINI_PRO_CHAIN = ['gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.1-flash-lite'];
 
+const removeEmojis = (str) => {
+  if (!str) return str;
+  return str.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, '')
+            .replace(/✅/g, '')
+            .replace(/❌/g, '')
+            .replace(/⚠️/g, '');
+};
+
 const generateContentWithFallback = async (genAI, modelChain, promptOrContent, timeoutMs = 45000) => {
   let lastError = null;
   for (const modelName of modelChain) {
@@ -234,7 +242,7 @@ export const analyzeTender = async (filePath, tenderId, onPhaseOneComplete) => {
 מסמך:
 ${shortText}`;
           const quickResult = await generateContentWithFallback(genAI, GEMINI_FLASH_CHAIN, quickPrompt, 15000);
-          const quickAnalysis = quickResult.response.text();
+          const quickAnalysis = removeEmojis(quickResult.response.text());
           if (onPhaseOneComplete) onPhaseOneComplete(quickAnalysis);
           return quickAnalysis;
         } catch (e) {
@@ -277,7 +285,7 @@ ${fullText}`;
               boq_json = jsonMatch[1].trim();
             } catch (e) { console.warn('BoQ JSON parse failed in Gemini analysis:', e.message); }
           }
-          const analysis = rawText.replace(jsonMatch?.[0] || '', '').trim();
+          const analysis = removeEmojis(rawText.replace(jsonMatch?.[0] || '', '').trim());
           return { analysis, boq_json };
         } catch (geminiDeepErr) {
           console.warn('Gemini Phase 2 deep analysis failed:', geminiDeepErr.message);
@@ -372,7 +380,7 @@ ${truncatedText}
           console.warn('BoQ JSON validation failed in generateProposal:', e.message); // התראה ביומן השרת אם ה-JSON פגום
         }
       }
-      return { proposal: text.replace(jsonMatch?.[0] || '', '').trim(), boq_json }; // מחזירים את ההצעה הכתובה (ללא בלוק ה-JSON) ואת ה-JSON התקין בנפרד
+      return { proposal: removeEmojis(text.replace(jsonMatch?.[0] || '', '').trim()), boq_json }; // מחזירים את ההצעה הכתובה (ללא בלוק ה-JSON) ואת ה-JSON התקין בנפרד
     } catch (geminiErr) {
       console.warn("Gemini failed for generateProposal:", geminiErr.message);
       throw new Error(`כל שירותי הבינה המלאכותית של גוגל נכשלו ביצירת ההצעה: ${geminiErr.message}`);
