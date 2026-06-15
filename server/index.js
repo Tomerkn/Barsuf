@@ -7,6 +7,7 @@ import fs from 'fs';
 import { Storage } from '@google-cloud/storage';
 import db from './db.js';
 import { reseedDatabase } from './seed.js';
+import { initCronJobs } from './cron.js';
 import { ingestDocument, askQuestion, analyzeReceipt, analyzeTender, generateProposal, vectorStore, VECTOR_DB_PATH } from './ai.js';
 import { uploadFileToCloud, ensureFileExistsLocally } from './storage.js';
 
@@ -814,6 +815,19 @@ app.get('/api/notifications', (req, res) => {
           category: 'logs'
         });
       }
+    });
+
+    // ── 9. התראות קבועות ממערכת האוטומציות (Cron/Webhooks) ─────────────
+    const systemAlerts = db.prepare(`SELECT * FROM alerts WHERE is_read = 0 ORDER BY created_at DESC`).all();
+    systemAlerts.forEach(a => {
+      alerts.push({
+        id: `sys-${a.id}`,
+        type: a.type.includes('warning') ? 'warning' : a.type.includes('danger') ? 'danger' : 'info',
+        title: a.title,
+        message: a.message,
+        projectId: null,
+        category: 'system'
+      });
     });
 
     alerts.sort((a, b) => (a.type === 'danger' ? -1 : b.type === 'danger' ? 1 : 0));
@@ -1747,8 +1761,27 @@ app.post('/api/monday/webhook', async (req, res) => {
             .run(name, notes || 'נווה עמל, הרצליה', dueDate, status === 'Stuck' ? 'עיכוב' : 'תקין', `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪`, pulseId, '5098147203', globalToken);
           console.log(`[Webhook] Created new project: ${name}`);
         }
+
+        // Automation 5: Project Won Alert
+        const existingAlert = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('project_won', `%${pulseId}%`);
+        if (!existingAlert) {
+          console.log(`🎉 [WEBHOOK] AUTOMATION 5: Tender won, project opened -> ${name}`);
+          db.prepare('INSERT INTO alerts (type, title, message) VALUES (?, ?, ?)')
+            .run('project_won', 'מכרז עבר לסטטוס "זכינו"!', `הפרויקט "${name}" נפתח אוטומטית בלוח ניהול הפרויקטים הפעילים. [Ref: ${pulseId}]`);
+        }
+
       } else {
         db.prepare('DELETE FROM projects WHERE monday_id = ?').run(pulseId);
+
+        if (groupId === 'group_mm44qa68') {
+          // Automation 1: New Inquiry Alert
+          const existingAlert = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('new_inquiry', `%${pulseId}%`);
+          if (!existingAlert) {
+            console.log(`✉️ [WEBHOOK] AUTOMATION 1: New Inquiry received -> ${name}`);
+            db.prepare('INSERT INTO alerts (type, title, message) VALUES (?, ?, ?)')
+              .run('new_inquiry', 'פנייה חדשה התקבלה', `פנייה חדשה התקבלה במערכת: "${name}". התראה נשלחה למנהלת המשרד ולמנהל החברה. [Ref: ${pulseId}]`);
+          }
+        }
 
         let tenderStatus = 'חדש';
         if (groupId === 'group_mm44vds9') tenderStatus = 'נותח';
@@ -1813,6 +1846,8 @@ app.post('/api/monday/webhook', async (req, res) => {
       const name = item.name;
       let specialization = '';
       let notes = '';
+      let projectName = '';
+      let isDone = false;
 
       for (const col of item.column_values) {
         try {
@@ -1820,8 +1855,55 @@ app.post('/api/monday/webhook', async (req, res) => {
             specialization = col.text || '';
           } else if (col.id === 'text_mm44vndq') {
             notes = col.text || '';
+          } else if (col.id === 'text_mm44k583') {
+            projectName = col.text || '';
+          } else if (col.id === 'color_mm44r1') {
+            if (col.text === 'Done' || col.text === 'התקבלו') isDone = true;
           }
         } catch (e) {}
+      }
+
+      // Automation 3: If this contractor is Done, check all other contractors for the same project
+      if (isDone && projectName) {
+        const allQuery = `query { boards(ids: [5098147406]) { items_page(limit: 100) { items { column_values { id text } } } } }`;
+        const allRes = await fetch('https://api.monday.com/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: globalToken, 'API-Version': '2024-01' },
+          body: JSON.stringify({ query: allQuery })
+        });
+        const allData = await allRes.json();
+        const items = allData?.data?.boards?.[0]?.items_page?.items || [];
+        
+        const projItems = items.filter(it => {
+          const pCol = it.column_values.find(c => c.id === 'text_mm44k583');
+          return pCol && pCol.text === projectName;
+        });
+
+        const allDone = projItems.every(it => {
+          const sCol = it.column_values.find(c => c.id === 'color_mm44r1');
+          return sCol && (sCol.text === 'Done' || sCol.text === 'התקבלו');
+        });
+
+        if (allDone && projItems.length > 0) {
+          console.log(`🚀 [WEBHOOK] AUTOMATION 3: All contractors received for ${projectName}. Moving to In Preparation.`);
+          
+          const existingAlert = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('all_contractors_received', `%${projectName}%`);
+          if (!existingAlert) {
+            db.prepare('INSERT INTO alerts (type, title, message) VALUES (?, ?, ?)')
+              .run('all_contractors_received', 'כל קבלני המשנה התקבלו', `כל הצעות המחיר מקבלני המשנה עבור הפרויקט "${projectName}" התקבלו! המכרז עבר אוטומטית ל"בתהליך הכנה".`);
+          }
+            
+          const mainProj = db.prepare('SELECT monday_id FROM tenders WHERE name = ?').get(projectName) || 
+                           db.prepare('SELECT monday_id FROM projects WHERE name = ?').get(projectName);
+                           
+          if (mainProj && mainProj.monday_id) {
+            await fetch('https://api.monday.com/v2', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: globalToken, 'API-Version': '2024-01' },
+              body: JSON.stringify({ query: `mutation { move_item_to_group (item_id: ${mainProj.monday_id}, group_id: "group_mm44vds9") { id } }` })
+            });
+          }
+        }
       }
 
       const existingContractor = db.prepare('SELECT id FROM contractors WHERE monday_id = ?').get(pulseId);
@@ -2048,8 +2130,10 @@ setInterval(() => {
   db.backupToCloud();
 }, 5 * 60 * 1000);
 
+initCronJobs();
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
 // Triggering automated deployment pipeline check
 // Re-triggering pipeline with correct secret name

@@ -159,6 +159,15 @@ db.exec(`
     progress INTEGER DEFAULT 0,
     monday_id TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT,
+    title TEXT,
+    message TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    is_read INTEGER DEFAULT 0
+  );
 `);
 
 // הוספת עמודות תומכות מכרז לפרויקט קיים במידה ולא קיימות (מיגרציה בזמן ריצה)
