@@ -19,12 +19,13 @@ import {
   RefreshCw // ייבוא אייקון רענון / סנכרון עבור מאנדיי
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { X } from 'lucide-react';
+import { X, TrendingUp } from 'lucide-react';
 
 const globalNavItems = [
   { name: 'פרויקטים', path: '/', icon: Briefcase },
   { name: 'דאשבורד מנהל', path: '/overview', icon: LayoutDashboard },
   { name: 'מכרזים', path: '/tenders', icon: FileSearch },
+  { name: 'ערך עסקי ו-ROI', path: '/roi', icon: TrendingUp },
 ];
 
 const getProjectNavItems = (projectId) => [

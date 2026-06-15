@@ -19,7 +19,7 @@ import { Warranty } from './pages/Warranty'; // מביאים את מסך שנת 
 import Tenders from './pages/Tenders'; // מביאים את מסך המכרזים החכם
 import { AIFloatingWidget } from './components/ui/AIFloatingWidget'; // מביאים את הבוט החכם שצף על המסך
 import { ProfileSelection } from './pages/ProfileSelection'; // מביאים את מסך בחירת המשתמש
-
+import { RoiDashboard } from './pages/RoiDashboard'; // מסך ROI
 function AppContent() { // הפונקציה הראשית שמחליטה מה להראות באתר
   const [selectedProfile, setSelectedProfile] = useState(() => { // בודקים אם יש משתמש שכבר נבחר קודם
     try {
@@ -71,6 +71,7 @@ function AppContent() { // הפונקציה הראשית שמחליטה מה ל�
             <Route path="/" element={<Projects />} /> {/* דף הבית מראה את רשימת הפרויקטים */}
             <Route path="/overview" element={<Overview />} /> {/* דף ניהול כללי */}
             <Route path="/tenders" element={<Tenders />} /> {/* דף מכרזים חכם */}
+            <Route path="/roi" element={<RoiDashboard />} /> {/* דף ROI */}
             
             <Route path="/projects/:projectId" element={<Dashboard />} /> {/* דף פרויקט - נתונים וגרפים */}
             <Route path="/projects/:projectId/daily-logs" element={<DailyLogs />} /> {/* יומן עבודה של פרויקט */}
