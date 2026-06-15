@@ -1765,7 +1765,7 @@ app.post('/api/monday/webhook', async (req, res) => {
         // Automation 5: Project Won Alert
         const existingAlert = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('project_won', `%${pulseId}%`);
         if (!existingAlert) {
-          console.log(`🎉 [WEBHOOK] AUTOMATION 5: Tender won, project opened -> ${name}`);
+          console.log(`[WEBHOOK] AUTOMATION 5: Tender won, project opened -> ${name}`);
           db.prepare('INSERT INTO alerts (type, title, message) VALUES (?, ?, ?)')
             .run('project_won', 'מכרז עבר לסטטוס "זכינו"!', `הפרויקט "${name}" נפתח אוטומטית בלוח ניהול הפרויקטים הפעילים. [Ref: ${pulseId}]`);
         }
@@ -1777,7 +1777,7 @@ app.post('/api/monday/webhook', async (req, res) => {
           // Automation 1: New Inquiry Alert
           const existingAlert = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('new_inquiry', `%${pulseId}%`);
           if (!existingAlert) {
-            console.log(`✉️ [WEBHOOK] AUTOMATION 1: New Inquiry received -> ${name}`);
+            console.log(`[WEBHOOK] AUTOMATION 1: New Inquiry received -> ${name}`);
             db.prepare('INSERT INTO alerts (type, title, message) VALUES (?, ?, ?)')
               .run('new_inquiry', 'פנייה חדשה התקבלה', `פנייה חדשה התקבלה במערכת: "${name}". התראה נשלחה למנהלת המשרד ולמנהל החברה. [Ref: ${pulseId}]`);
           }
@@ -1885,7 +1885,7 @@ app.post('/api/monday/webhook', async (req, res) => {
         });
 
         if (allDone && projItems.length > 0) {
-          console.log(`🚀 [WEBHOOK] AUTOMATION 3: All contractors received for ${projectName}. Moving to In Preparation.`);
+          console.log(`[WEBHOOK] AUTOMATION 3: All contractors received for ${projectName}. Moving to In Preparation.`);
           
           const existingAlert = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('all_contractors_received', `%${projectName}%`);
           if (!existingAlert) {

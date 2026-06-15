@@ -75,7 +75,7 @@ async function checkSubcontractorsReminders() {
           // בדוק אם כבר התרענו
           const existing = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('contractor_reminder', `%${item.id}%`);
           if (!existing) {
-            console.log(`✉️ [CRON] Sending AUTOMATIC REMINDER EMAIL to contractor: ${item.name} (Waiting ${diffDays} days)`);
+            console.log(`[CRON] Sending AUTOMATIC REMINDER EMAIL to contractor: ${item.name} (Waiting ${diffDays} days)`);
             db.prepare('INSERT INTO alerts (type, title, message) VALUES (?, ?, ?)')
               .run('contractor_reminder', 'נשלחה תזכורת אוטומטית לקבלן', `קבלן המשנה "${item.name}" מתעכב מעל 3 ימים. נשלח מייל תזכורת אוטומטי. [Ref: ${item.id}]`);
           }
@@ -130,7 +130,7 @@ async function checkProjectDeadlines() {
           // בדוק אם כבר התרענו
           const existing = db.prepare('SELECT id FROM alerts WHERE type=? AND message LIKE ?').get('deadline_warning', `%${item.id}%`);
           if (!existing) {
-            console.log(`🚨 [CRON] DEADLINE ALERT for project: ${item.name} (${Math.round(diffHours)} hours left)`);
+            console.log(`[CRON] DEADLINE ALERT for project: ${item.name} (${Math.round(diffHours)} hours left)`);
             db.prepare('INSERT INTO alerts (type, title, message) VALUES (?, ?, ?)')
               .run('deadline_warning', 'התראת 48 שעות להגשה!', `נותרו פחות מ-48 שעות להגשת המכרז: "${item.name}". התראה נשלחה למנהל הפרויקט. [Ref: ${item.id}]`);
           }
