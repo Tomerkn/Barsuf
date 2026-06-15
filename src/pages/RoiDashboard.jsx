@@ -123,15 +123,20 @@ export function RoiDashboard() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-6 flex items-center gap-6 text-sm text-slate-500">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[var(--color-brand)]"></div>
-              <span>חיסכון מצטבר</span>
+          <div className="mt-6 flex flex-col gap-4">
+            <div className="flex items-center gap-6 text-sm text-slate-500">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[var(--color-brand)]"></div>
+                <span>חיסכון מצטבר</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full border-2 border-slate-400 border-dashed"></div>
+                <span>עלות רישוי המערכת</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full border-2 border-slate-400 border-dashed"></div>
-              <span>עלות רישוי המערכת</span>
-            </div>
+            <p className="text-xs text-slate-400 italic">
+              * קצת שקיפות: איך הגענו לזה? לקחנו את שעות העבודה שנחסכות בכל חודש (הקלדות, תמחור מכרזים, רדיפה אחרי קבלנים וכדומה) והכפלנו בעלות הממוצעת של שעת מנהל בחברה. הטווח התחתון של החיסכון מוצג כאן.
+            </p>
           </div>
         </div>
 
