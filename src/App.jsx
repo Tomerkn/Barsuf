@@ -20,6 +20,7 @@ import Tenders from './pages/Tenders'; // מביאים את מסך המכרזי�
 import { AIFloatingWidget } from './components/ui/AIFloatingWidget'; // מביאים את הבוט החכם שצף על המסך
 import { ProfileSelection } from './pages/ProfileSelection'; // מביאים את מסך בחירת המשתמש
 import { RoiDashboard } from './pages/RoiDashboard'; // מסך ROI
+import { AcademicProject } from './pages/AcademicProject'; // דף שער לפרויקט אקדמי
 function AppContent() { // הפונקציה הראשית שמחליטה מה להראות באתר
   const [selectedProfile, setSelectedProfile] = useState(() => { // בודקים אם יש משתמש שכבר נבחר קודם
     try {
@@ -72,6 +73,7 @@ function AppContent() { // הפונקציה הראשית שמחליטה מה ל�
             <Route path="/overview" element={<Overview />} /> {/* דף ניהול כללי */}
             <Route path="/tenders" element={<Tenders />} /> {/* דף מכרזים חכם */}
             <Route path="/roi" element={<RoiDashboard />} /> {/* דף ROI */}
+            <Route path="/academic" element={<AcademicProject />} /> {/* דף פרויקט גמר */}
             
             <Route path="/projects/:projectId" element={<Dashboard />} /> {/* דף פרויקט - נתונים וגרפים */}
             <Route path="/projects/:projectId/daily-logs" element={<DailyLogs />} /> {/* יומן עבודה של פרויקט */}
