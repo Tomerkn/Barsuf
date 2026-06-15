@@ -213,7 +213,7 @@ export function Dashboard() { // דף הלוח בקרה (דשבורד) של הפ
   })) : [];
 
   return (
-    <div className="p-8 max-w-[96%] mx-auto">
+    <div className="p-8 w-[96%] max-w-[1920px] mx-auto">
       {/* כותרת הדף עם שם הפרויקט והסטטוס שלו */}
       <div className="mb-8 flex justify-between items-end bg-surface p-4 rounded-xl border border-border shadow-sm">
         <div>

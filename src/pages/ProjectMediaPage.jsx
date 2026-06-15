@@ -6,7 +6,7 @@ export function ProjectMediaPage() { // דף ניהול המדיה של הפרו
   const { projectId } = useParams(); // לוקחים את מספר הפרויקט מהכתובת בדפדפן
 
   return (
-    <div className="p-8 max-w-[96%] mx-auto">
+    <div className="p-8 w-[96%] max-w-[1920px] mx-auto">
       {/* כותרת הדף והסבר קצר */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-text-primary">מסמכים וגלריה</h1>

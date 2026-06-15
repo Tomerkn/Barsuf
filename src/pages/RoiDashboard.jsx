@@ -46,7 +46,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export function RoiDashboard() {
   return (
-    <div className="p-10 max-w-[96%] mx-auto text-right bg-[#FAFAFA] min-h-full" dir="rtl">
+    <div className="p-10 w-[96%] max-w-[1920px] mx-auto text-right bg-[#FAFAFA] min-h-full" dir="rtl">
       
       {/* Executive Header */}
       <div className="mb-14 border-b border-slate-200 pb-10">

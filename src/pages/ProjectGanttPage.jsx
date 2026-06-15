@@ -6,7 +6,7 @@ export function ProjectGanttPage() { // דף לוחות זמנים (גאנט) ש
   const { projectId } = useParams(); // לוקחים את מספר הפרויקט מהכתובת בדפדפן
 
   return (
-    <div className="p-8 max-w-[96%] mx-auto">
+    <div className="p-8 w-[96%] max-w-[1920px] mx-auto">
       {/* הרכיב שמציג את לוח הזמנים והמשימות */}
       <ProjectGantt projectId={projectId} />
     </div>

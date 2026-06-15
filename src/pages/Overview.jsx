@@ -60,7 +60,7 @@ export function Overview() { // דף מבט-על ארגוני של כל החבר
   }
 
   return (
-    <div className="p-8 max-w-[96%] mx-auto space-y-8">
+    <div className="p-8 w-[96%] max-w-[1920px] mx-auto space-y-8">
       {/* כותרת הדף */}
       <div className="flex justify-between items-start">
         <div>

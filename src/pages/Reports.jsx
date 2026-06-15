@@ -206,7 +206,7 @@ export function Reports() { // פונקציית הרכיב הראשי של דף 
   }; // סיום פונקציית הייצוא לקובץ
 
   return ( // החזרת תוכן ה-JSX לרינדור הממשק
-    <div className="p-8 max-w-[96%] mx-auto space-y-8 text-right" dir="rtl"> {/* מעטפת הדף - יישור לימין וכיוון RTL */}
+    <div className="p-8 w-[96%] max-w-[1920px] mx-auto space-y-8 text-right" dir="rtl"> {/* מעטפת הדף - יישור לימין וכיוון RTL */}
       
       {/* כותרת הדף */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6"> {/* כותרת ראשית של עמוד הדוחות */}
