@@ -69,7 +69,7 @@ export const VECTOR_DB_PATH = path.join(CACHE_DIR, 'vector_db.json');
 const updateLiveStatus = (tenderId, statusMsg) => {
   try {
     if (tenderId) {
-      db.prepare('UPDATE tenders SET status = ? WHERE id = ?').run(statusMsg, tenderId);
+      db.prepare('UPDATE tenders SET ai_progress = ? WHERE id = ?').run(statusMsg, tenderId);
     }
   } catch (e) { console.error('Status update failed:', e); }
 };

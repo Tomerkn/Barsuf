@@ -114,7 +114,7 @@ app.get('/api/projects/:id', (req, res) => {
 app.post('/api/projects', (req, res) => {
   const { name, location, end_date, status } = req.body;
   const insert = db.prepare('INSERT INTO projects (name, location, end_date, status) VALUES (?, ?, ?, ?)');
-  const info = insert.run(name, location, end_date, status || 'תקין');
+  const info = insert.run(name, location, end_date, status || 'זכייה');
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
@@ -233,7 +233,7 @@ app.post('/api/tenders', upload.single('file'), async (req, res) => {
   
   try {
     const insert = db.prepare('INSERT INTO tenders (name, filename, upload_date, status) VALUES (?, ?, ?, ?)');
-    const info = insert.run(req.file.originalname, req.file.filename, new Date().toISOString(), 'מעלה...');
+    const info = insert.run(req.file.originalname, req.file.filename, new Date().toISOString(), 'פנייה חדשה');
     const tenderId = info.lastInsertRowid;
     
     // העלאת קובץ המכרז המקורי לגיבוי בענן מייד עם קבלתו
@@ -270,14 +270,14 @@ app.post('/api/tenders/:id/analyze', async (req, res) => {
 
     const onPhaseOneComplete = (quickAnalysis) => {
       db.prepare('UPDATE tenders SET analysis = ?, status = ? WHERE id = ?')
-        .run(quickAnalysis, 'נותח (ראשוני)', tenderId);
+        .run(quickAnalysis, 'בתהליך תמחור', tenderId);
       console.log(`⚡ Phase 1 quick analysis saved for tender ${tenderId}`);
     };
 
     console.log(`🤖 Starting smart tender analysis synchronously for tender-${tenderId}...`);
     const { analysis, boq_json } = await analyzeTender(filePath, tenderId, onPhaseOneComplete);
     db.prepare('UPDATE tenders SET analysis = ?, boq_json = ?, status = ? WHERE id = ?')
-      .run(analysis, boq_json, 'נותח', tenderId);
+      .run(analysis, boq_json, 'בתהליך תמחור', tenderId);
     console.log(`✅ Phase 2 deep analysis + BoQ saved for tender ${tenderId}`);
     
     res.json({ success: true });
@@ -297,8 +297,8 @@ app.post('/api/tenders/:id/proposal', async (req, res) => {
   try {
     const { proposal, boq_json } = await generateProposal(path.join(UPLOADS_DIR, tender.filename), req.params.id);
     
-    // Update tender record (keep status as 'הועבר לפרויקט' if it was already converted, or change to 'מוכן')
-    const nextStatus = tender.status === 'הועבר לפרויקט' ? 'הועבר לפרויקט' : 'מוכן';
+    // Update tender record (keep status as 'זכייה' if it was already converted, or change to 'הצעת מחיר מוכנה')
+    const nextStatus = tender.status === 'זכייה' ? 'זכייה' : 'הצעת מחיר מוכנה';
     db.prepare('UPDATE tenders SET proposal = ?, boq_json = COALESCE(?, boq_json), status = ? WHERE id = ?').run(proposal, boq_json, nextStatus, req.params.id);
     
     // Also save the proposal in the converted project if it exists!
@@ -401,7 +401,7 @@ app.post('/api/tenders/:id/convert-to-project', async (req, res) => {
     }
     
     // 5. Update tender status to indicate it has been successfully transferred
-    db.prepare("UPDATE tenders SET status = 'הועבר לפרויקט' WHERE id = ?").run(tenderId);
+    db.prepare("UPDATE tenders SET status = 'זכייה' WHERE id = ?").run(tenderId);
     
     // Backup DB
     db.backupToCloud().catch(e => console.error('Cloud backup failed:', e));
@@ -1754,11 +1754,11 @@ app.post('/api/monday/webhook', async (req, res) => {
         const existingProject = db.prepare('SELECT id FROM projects WHERE monday_id = ?').get(pulseId);
         if (existingProject) {
           db.prepare('UPDATE projects SET name = ?, end_date = ?, status = ?, location = ?, analysis = ? WHERE id = ?')
-            .run(name, dueDate, status === 'Stuck' ? 'עיכוב' : 'תקין', notes || 'נווה עמל, הרצליה', `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪`, existingProject.id);
+            .run(name, dueDate, status || 'זכייה', notes || 'נווה עמל, הרצליה', `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪`, existingProject.id);
           console.log(`[Webhook] Updated existing project: ${name}`);
         } else {
           db.prepare('INSERT INTO projects (name, location, end_date, status, analysis, monday_id, monday_board_id, monday_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-            .run(name, notes || 'נווה עמל, הרצליה', dueDate, status === 'Stuck' ? 'עיכוב' : 'תקין', `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪`, pulseId, '5098147203', globalToken);
+            .run(name, notes || 'נווה עמל, הרצליה', dueDate, status || 'זכייה', `לקוח: ${client}, סכום: ${amount.toLocaleString('he-IL')} ₪`, pulseId, '5098147203', globalToken);
           console.log(`[Webhook] Created new project: ${name}`);
         }
 
@@ -1783,10 +1783,7 @@ app.post('/api/monday/webhook', async (req, res) => {
           }
         }
 
-        let tenderStatus = 'חדש';
-        if (groupId === 'group_mm44vds9') tenderStatus = 'נותח';
-        else if (groupId === 'group_mm44ncgn') tenderStatus = 'הוגש';
-        else if (groupId === 'group_mm4428r5') tenderStatus = 'לא זכינו';
+        let tenderStatus = status || 'פנייה חדשה';
 
         const existingTender = db.prepare('SELECT id FROM tenders WHERE monday_id = ?').get(pulseId);
         if (existingTender) {

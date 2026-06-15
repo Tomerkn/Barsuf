@@ -263,12 +263,9 @@ export default function Tenders() {
   // עוצר פולינג כשהמכרז הושלם, נכשל, או שאין בעיבוד
   useEffect(() => {
     const hasInProgress = generating || tenders.some(t => 
-      t.status !== 'נותח' && 
-      t.status !== 'הצעה מוכנה' && 
-      t.status !== 'מוכן' &&
-      t.status !== 'שגיאה' &&
-      t.status !== 'הועבר לפרויקט' &&
-      t.status !== null
+      t.status === 'פנייה חדשה' || 
+      t.status === 'תוכניות הועלו' ||
+      t.ai_progress != null
     );
 
     // מנגנון רענון מהיר (כל 1 שניה) בעת ניתוח/טעינה פעילים לעדכון הסטטוס ומד ההתקדמות
@@ -325,7 +322,8 @@ export default function Tenders() {
       id: -Date.now(),
       name: file.name,
       upload_date: new Date().toISOString(),
-      status: 'מעלה...',
+      status: 'פנייה חדשה',
+      ai_progress: 'מעלה...',
       analysis: null,
       proposal: null,
       boq_json: null,
@@ -543,11 +541,12 @@ export default function Tenders() {
                     })()}
                   </div>
                   <div className={`px-2 py-1 rounded-full text-[10px] font-bold shrink-0 ${
-                    tender.status === 'הועבר לפרויקט' ? 'bg-purple-100 text-purple-700' :
-                    tender.status === 'נותח' ? 'bg-emerald-100 text-emerald-700' :
-                    tender.status === 'נותח (ראשוני)' ? 'bg-amber-100 text-amber-700 animate-pulse' :
-                    tender.status === 'הצעה מוכנה' || tender.status === 'מוכן' ? 'bg-blue-100 text-blue-700' :
-                    'bg-amber-100 text-amber-700'
+                    tender.status === 'זכייה' ? 'bg-purple-100 text-purple-700' :
+                    tender.status === 'הפסד' ? 'bg-red-100 text-red-700' :
+                    tender.status === 'בתהליך תמחור' ? 'bg-amber-100 text-amber-700' :
+                    tender.status === 'הצעת מחיר מוכנה' ? 'bg-blue-100 text-blue-700' :
+                    tender.status === 'תוכניות הועלו' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-slate-100 text-slate-700'
                   }`}>
                     {tender.status}
                   </div>
@@ -595,7 +594,7 @@ export default function Tenders() {
                     </Link>
                   ) : (
                     /* כפתור העברה לפרויקטים (מוצג רק אם עדיין לא הועבר) */
-                    selectedTender.analysis && selectedTender.status !== 'שגיאה' && (
+                    selectedTender.analysis && selectedTender.status !== 'שגיאה' && selectedTender.status !== 'זכייה' && (
                       <button 
                         onClick={() => handleConvertToProject(selectedTender.id)}
                         disabled={converting}
@@ -620,7 +619,7 @@ export default function Tenders() {
                   )}
 
                   {/* כפתור הפקת הצעה - מופיע רק אם המכרז כבר נותח אבל עדיין אין הצעה */}
-                  {!selectedTender.proposal && (selectedTender.status === 'נותח' || selectedTender.status === 'הועבר לפרויקט') && (
+                  {!selectedTender.proposal && selectedTender.status !== 'שגיאה' && selectedTender.status !== 'פנייה חדשה' && (
                     <button 
                       onClick={() => generateProposal(selectedTender.id)}
                       disabled={generating}
@@ -644,7 +643,7 @@ export default function Tenders() {
                     {selectedTender.analysis ? (
                       <>
                         {/* באנר שלב 1 - מוצג כשהניתוח העמוק עדיין רץ */}
-                        {selectedTender.status === 'נותח (ראשוני)' && (
+                        {selectedTender.ai_progress && selectedTender.ai_progress.includes('שלב 1') && (
                           <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
                             <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                             <span><strong>ניתוח ראשוני מוכן.</strong> ברבור מעמיק את הנתונים ברקע — הדף יתעדכן אוטומטית.‏</span>
@@ -695,18 +694,17 @@ export default function Tenders() {
                       <div className="flex flex-col items-center justify-center py-8 gap-4">
                         <div className="flex items-center gap-3 text-[var(--color-brand)] font-bold animate-pulse">
                           <Loader2 className="w-6 h-6 animate-spin" />
-                          {selectedTender.status || "מעבד נתונים..."}
+                          {selectedTender.ai_progress || selectedTender.status || "מעבד נתונים..."}
                         </div>
                         <div className="w-full max-w-xs bg-blue-100 h-1.5 rounded-full overflow-hidden">
                           {/* חישוב דינמי של רוחב פס ההתקדמות בהתאם לסטטוסים האמיתיים שמחזיר השרת */}
                           <div 
                             className="bg-[var(--color-brand)] h-full transition-all duration-700 ease-in-out" 
                             style={{ 
-                              width: selectedTender.status === 'נותח (ראשוני)' ? '75%' :
-                                     selectedTender.status?.includes('קורא') ? '25%' :
-                                     selectedTender.status?.includes('שלב 1') ? '55%' :
-                                     selectedTender.status?.includes('הושלם') || selectedTender.status?.includes('הועבר') || selectedTender.status === 'נותח' ? '100%' :
-                                     selectedTender.status === 'מעלה...' ? '10%' :
+                              width: selectedTender.ai_progress?.includes('שלב 1') ? '75%' :
+                                     selectedTender.ai_progress?.includes('קורא') ? '25%' :
+                                     selectedTender.ai_progress?.includes('ניתוח הושלם') ? '100%' :
+                                     selectedTender.ai_progress === 'מעלה...' ? '10%' :
                                      '40%'
                             }}
                           />
@@ -718,21 +716,21 @@ export default function Tenders() {
                 </section>
 
                 {/* אזור הצעת המחיר (אם כבר הופקה או בהכנה) */}
-                {(selectedTender.proposal || generating || selectedTender.status === 'מתחבר למאגר המחירים ההיסטורי...' || selectedTender.status === 'מנתח כמויות וסעיפים מול ההיסטוריה...' || selectedTender.status === 'בונה כתב כמויות (BoQ) ומחשב מחיר מטרה...') && (
+                {(selectedTender.proposal || generating || selectedTender.ai_progress?.includes('מתחבר למאגר') || selectedTender.ai_progress?.includes('מנתח כמויות') || selectedTender.ai_progress?.includes('בונה כתב כמויות')) && (
                   <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
                     {!selectedTender.proposal ? (
                       <div className="flex flex-col items-center justify-center py-8 gap-4 bg-emerald-50/30 rounded-2xl border border-emerald-100">
                         <div className="flex items-center gap-3 text-emerald-600 font-bold animate-pulse">
                           <Loader2 className="w-6 h-6 animate-spin" />
-                          {selectedTender.status || "מכין הצעת מחיר..."}
+                          {selectedTender.ai_progress || "מכין הצעת מחיר..."}
                         </div>
                         <div className="w-full max-w-xs bg-emerald-100 h-1.5 rounded-full overflow-hidden">
                           <div 
                             className="bg-emerald-500 h-full transition-all duration-700 ease-in-out" 
                             style={{ 
-                              width: selectedTender.status?.includes('מתחבר') ? '20%' :
-                                     selectedTender.status?.includes('מנתח') ? '50%' :
-                                     selectedTender.status?.includes('בונה') ? '85%' :
+                              width: selectedTender.ai_progress?.includes('מתחבר') ? '20%' :
+                                     selectedTender.ai_progress?.includes('מנתח') ? '50%' :
+                                     selectedTender.ai_progress?.includes('בונה') ? '85%' :
                                      '10%'
                             }}
                           />

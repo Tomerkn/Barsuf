@@ -8,7 +8,7 @@ export function Projects() { // דף ניהול הפרויקטים הראשי
   const [projects, setProjects] = useState([]); // רשימת הפרויקטים שנשמרת כאן
   const [loading, setLoading] = useState(true); // האם אנחנו מחכים למידע מהשרת
   const [isModalOpen, setIsModalOpen] = useState(false); // האם החלונית להוספת פרויקט פתוחה
-  const [formData, setFormData] = useState({ name: '', location: '', end_date: '', status: 'תקין' }); // הנתונים שהמשתמש ממלא בטופס
+  const [formData, setFormData] = useState({ name: '', location: '', end_date: '', status: 'זכייה' }); // הנתונים שהמשתמש ממלא בטופס
   const [submitting, setSubmitting] = useState(false); // האם אנחנו באמצע שמירת נתונים
   const [editingId, setEditingId] = useState(null); // אם אנחנו עורכים פרויקט קיים, כאן נשמר המספר שלו
 
@@ -45,7 +45,7 @@ export function Projects() { // דף ניהול הפרויקטים הראשי
       }
       setIsModalOpen(false); // סוגרים את החלונית
       setEditingId(null); // מאפסים את מצב העריכה
-      setFormData({ name: '', location: '', end_date: '', status: 'תקין' }); // מנקים את הטופס
+      setFormData({ name: '', location: '', end_date: '', status: 'זכייה' }); // מנקים את הטופס
       await fetchProjects(); // מרעננים את הרשימה על המסך
     } catch (error) {
       console.error('Failed to save project:', error); // אם נכשל
@@ -74,7 +74,7 @@ export function Projects() { // דף ניהול הפרויקטים הראשי
       name: project.name,
       location: project.location || '',
       end_date: project.end_date ? new Date(project.end_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      status: project.status || 'תקין'
+      status: project.status || 'זכייה'
     });
     setIsModalOpen(true); // פותחים את החלונית
   };
@@ -91,7 +91,7 @@ export function Projects() { // דף ניהול הפרויקטים הראשי
         <button 
           onClick={() => {
             setEditingId(null); // מאפסים עריכה כדי ליצור חדש
-            setFormData({ name: '', location: '', end_date: '', status: 'תקין' }); // טופס נקי
+            setFormData({ name: '', location: '', end_date: '', status: 'זכייה' }); // טופס נקי
             setIsModalOpen(true); // פתיחת החלונית
           }}
           className="bg-[var(--color-brand)] hover:bg-[#46a2aa] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
@@ -115,7 +115,7 @@ export function Projects() { // דף ניהול הפרויקטים הראשי
                 <Briefcase className="w-5 h-5" />
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${project.status === 'תקין' ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-red-500/10 text-red-600'}`}>
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${project.status === 'זכייה' ? 'bg-[#10b981]/10 text-[#10b981]' : project.status === 'הפסד' ? 'bg-red-500/10 text-red-600' : 'bg-blue-500/10 text-blue-600'}`}>
                   {project.status} {/* תגית סטטוס (תקין/חריגה) */}
                 </span>
                 <button onClick={(e) => handleEdit(project, e)} className="p-1 text-text-muted hover:text-[var(--color-brand)] transition-colors" title="ערוך">
@@ -172,9 +172,17 @@ export function Projects() { // דף ניהול הפרויקטים הראשי
               className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-[var(--color-brand)]"
               value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}
             >
-              <option value="תקין">תקין</option>
-              <option value="עיכוב בלוחות זמנים">עיכוב בלוחות זמנים</option>
-              <option value="חריגה תקציבית">חריגה תקציבית</option>
+              <option value="פנייה חדשה">פנייה חדשה</option>
+              <option value="תוכניות הועלו">תוכניות הועלו</option>
+              <option value="נשלח לקבלני משנה">נשלח לקבלני משנה</option>
+              <option value="ממתין להצעות">ממתין להצעות</option>
+              <option value="הצעות התקבלו">הצעות התקבלו</option>
+              <option value="בתהליך תמחור">בתהליך תמחור</option>
+              <option value="הצעת מחיר מוכנה">הצעת מחיר מוכנה</option>
+              <option value="נשלחה ללקוח">נשלחה ללקוח</option>
+              <option value="ממתין לתשובת לקוח">ממתין לתשובת לקוח</option>
+              <option value="זכייה">זכייה</option>
+              <option value="הפסד">הפסד</option>
             </select>
           </div>
           

@@ -92,12 +92,11 @@ async function syncProject(project) {
   if (openWarranty > 0) notesText += ` | ${openWarranty} קריאות אחריות פתוחות`;
   if (pendingOrders > 0) notesText += ` | ${pendingOrders} הזמנות ממתינות`;
 
-  // קבע סטטוס ביצוע
+  // קבע סטטוס ביצוע (עברית)
   const prog = Math.round(progress);
-  let execLabel = "Not Started";
-  if (prog > 0 && prog < 100) execLabel = "Working on it";
-  if (prog === 100) execLabel = "Done";
-  if (project.status === "עיכוב") execLabel = "Stuck";
+  let execLabel = "בתהליך"; // "Working on it" -> "בתהליך"
+  if (prog === 100) execLabel = "הושלם"; // "Done" -> "הושלם"
+  if (project.status === "עיכוב") execLabel = "תקוע"; // "Stuck" -> "תקוע"
 
   // מצא / צור פריט
   let itemId;
@@ -118,8 +117,8 @@ async function syncProject(project) {
     [COL.progress]:     prog,
     [COL.budget]:       budgetTotal,
     [COL.actual]:       Math.round(actualTotal),
-    [COL.status]:       project.status === "עיכוב" ? { label: "Stuck" } : { label: "Done" },
-    [COL.priority]:     project.status === "עיכוב" ? { label: "Stuck" } : { label: "Working on it" },
+    [COL.status]:       { label: project.status }, // 11 statuses exact match
+    [COL.priority]:     project.status === "עיכוב" ? { label: "נמוכה" } : { label: "רגילה" },
   };
 
   if (project.end_date) colValues[COL.submitDate] = { date: project.end_date };

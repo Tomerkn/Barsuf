@@ -53,7 +53,7 @@ db.exec(`
     name TEXT NOT NULL,
     location TEXT,
     end_date TEXT,
-    status TEXT DEFAULT 'תקין',
+    status TEXT DEFAULT 'זכייה',
     tender_id INTEGER,
     analysis TEXT,
     proposal TEXT,
@@ -95,7 +95,8 @@ db.exec(`
     name TEXT,
     filename TEXT,
     upload_date TEXT,
-    status TEXT,
+    status TEXT DEFAULT 'פנייה חדשה',
+    ai_progress TEXT,
     analysis TEXT,
     proposal TEXT,
     boq_json TEXT
@@ -183,6 +184,7 @@ try { db.exec(`ALTER TABLE projects ADD COLUMN monday_auto_sync INTEGER DEFAULT 
 try { db.exec(`ALTER TABLE projects ADD COLUMN monday_embed_url TEXT;`); } catch (e) {} // עמודה לשמירת כתובת ה-embed של לוח או דשבורד ממאנדיי
 try { db.exec(`ALTER TABLE projects ADD COLUMN monday_id TEXT;`); } catch (e) {} // מזהה פריט ב-Monday.com עבור פרויקטים
 try { db.exec(`ALTER TABLE tenders ADD COLUMN monday_id TEXT;`); } catch (e) {} // מזהה פריט ב-Monday.com עבור מכרזים
+try { db.exec(`ALTER TABLE tenders ADD COLUMN ai_progress TEXT;`); } catch (e) {} // עמודה לסטטוס חי של בינה מלאכותית
 
 // הוספת טבלת הגדרות כלליות למערכת (למשל סנכרון קבלנים גלובלי)
 db.exec(`

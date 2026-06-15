@@ -186,7 +186,7 @@ export function Header({ toggleMobileMenu, profile, onLogout }) {
                     onClick={fetchAlerts}
                     className="text-[10px] text-blue-500 hover:text-blue-700 font-medium transition-colors"
                   >
-                    🔄 רענן עכשיו
+                    רענן עכשיו
                   </button>
                 </div>
               )}
